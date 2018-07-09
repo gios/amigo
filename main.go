@@ -99,15 +99,20 @@ func windowLogger() {
 					log.Fatalf("getKeyboardLayout -> %v", getKeyboardLayoutErr)
 				}
 
-				languageID := int64(hkl) & int64(math.Pow(2, 16)-1)
+				languageCode := int64(hkl) & int64(math.Pow(2, 16)-1)
+				languageID, languageCodeErr := strconv.Atoi(strconv.FormatInt(languageCode, 16))
 
-				switch strconv.FormatInt(languageID, 16) {
-				case "409":
-					fmt.Printf("Language: United States (US) \r\n")
-				case "422":
-					fmt.Printf("Language: Ukraine (UA) \r\n")
-				case "419":
-					fmt.Printf("Language: Russia (RU) \r\n")
+				if languageCodeErr != nil {
+					log.Fatalf("languageCodeErr -> %v", languageCodeErr)
+				}
+
+				switch languageID {
+				case 409:
+					fmt.Printf("Language: %v \r\n", constants.US)
+				case 422:
+					fmt.Printf("Language: %v \r\n", constants.UA)
+				case 419:
+					fmt.Printf("Language: %v \r\n", constants.RU)
 				}
 			}
 		}
