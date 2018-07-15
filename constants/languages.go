@@ -2,9 +2,9 @@ package constants
 
 const (
 	// US - Keyboard layout US language
-	US = "United States (US)"
+	US = 409
 	// UA - Keyboard layout UA language
-	UA = "Ukraine (UA)"
+	UA = 422
 	// RU - Keyboard layout RU language
-	RU = "Russia (RU)"
+	RU = 419
 )

