@@ -196,6 +196,9 @@ func getUnicodeKey(virtualCode int) string {
 	case constants.RU:
 		activateKeyboardLayout(hkl)
 		fmt.Printf("Language: Russia (RU) \r\n")
+	default:
+		activateKeyboardLayout(hkl)
+		fmt.Printf("Language: None \r\n")
 	}
 
 	unicodeBuf := make([]uint16, 256)
