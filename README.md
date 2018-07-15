@@ -1,2 +1,2 @@
 # amigo
-Go channel based windows keylogger 
+Go channel based windows keylogger.
