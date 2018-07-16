@@ -1,3 +1,7 @@
+// goversioninfo
+// go generate
+// go build -ldflags "-H windowsgui"
+
 package main
 
 import (
