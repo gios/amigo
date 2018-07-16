@@ -442,8 +442,19 @@ func copy(src, dst string) error {
 	return out.Close()
 }
 
+func setLogOutput() {
+	f, err := os.OpenFile("debug.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
+	if err != nil {
+		log.Fatalf("setLogOutput -> %v", err)
+	}
+	defer f.Close()
+
+	log.SetOutput(f)
+}
+
 func main() {
 	log.Println("Starting...")
+	setLogOutput()
 	getSystemInfo()
 	createLogFile()
 	addScheduler()
