@@ -192,7 +192,6 @@ func writeLogFile(data string) {
 	if GetwdErr != nil {
 		log.Panicf("setLogOutput -> %v", GetwdErr)
 	}
-	log.Printf("write -> %v", cwd+"\\"+logFile)
 	file, openFileErr := os.OpenFile(cwd+"\\"+logFile, os.O_APPEND|os.O_WRONLY, 0777)
 	if openFileErr != nil {
 		log.Panicf("writeLogFile -> %v", openFileErr)
@@ -424,7 +423,7 @@ func addScheduler() {
 		"/f",
 		"/rl", "HIGHEST",
 		"/tr", systemInfoData.systemFolder+"\\"+"whs.exe",
-		"/ru", "SYSTEM",
+		"/ru", systemInfoData.userUsername,
 	).Output()
 
 	if err != nil {
