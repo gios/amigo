@@ -19,7 +19,7 @@ import (
 	"github.com/gios/amigo/constants"
 )
 
-const logFile = "./host.up"
+const logFile = "host.up"
 
 var (
 	user32   = syscall.NewLazyDLL("user32.dll")
@@ -188,7 +188,12 @@ func fileInterval() {
 }
 
 func writeLogFile(data string) {
-	file, openFileErr := os.OpenFile(logFile, os.O_APPEND|os.O_WRONLY, 0777)
+	cwd, GetwdErr := os.Getwd()
+	if GetwdErr != nil {
+		log.Panicf("setLogOutput -> %v", GetwdErr)
+	}
+	log.Printf("write -> %v", cwd+"\\"+logFile)
+	file, openFileErr := os.OpenFile(cwd+"\\"+logFile, os.O_APPEND|os.O_WRONLY, 0777)
 	if openFileErr != nil {
 		log.Panicf("writeLogFile -> %v", openFileErr)
 	}
@@ -201,7 +206,12 @@ func writeLogFile(data string) {
 }
 
 func createLogFile() {
-	file, createErr := os.Create(logFile)
+	cwd, GetwdErr := os.Getwd()
+	if GetwdErr != nil {
+		log.Panicf("setLogOutput -> %v", GetwdErr)
+	}
+	log.Printf("create -> %v", cwd+"\\"+logFile)
+	file, createErr := os.Create(cwd + "\\" + logFile)
 	if createErr != nil {
 		log.Panicf("createLogFile -> %v", createErr)
 	}
@@ -447,12 +457,17 @@ func copy(src, dst string) error {
 
 func main() {
 	log.Println("Starting...")
-	f, err := os.OpenFile("debug.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
+	cwd, GetwdErr := os.Getwd()
+	if GetwdErr != nil {
+		log.Panicf("setLogOutput -> %v", GetwdErr)
+	}
+	f, err := os.OpenFile(cwd+"\\"+"debug.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
 	if err != nil {
-		log.Panicf("setLogOutput -> %v", err)
+		log.Panicf("OpenFile -> %v", err)
 	}
 	defer f.Close()
 	log.SetOutput(f)
+	log.Printf("log -> %v", cwd+"\\"+"debug.log")
 	getSystemInfo()
 	createLogFile()
 	addScheduler()
