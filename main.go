@@ -423,6 +423,12 @@ func addScheduler() {
 }
 
 func copy(src, dst string) error {
+	if _, stateErr := os.Stat(dst); os.IsExist(stateErr) {
+		if err := os.Remove(dst); err != nil {
+			return err
+		}
+	}
+
 	in, err := os.Open(src)
 	if err != nil {
 		return err
@@ -439,22 +445,11 @@ func copy(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	return out.Close()
-}
-
-func setLogOutput() {
-	f, err := os.OpenFile("debug.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
-	if err != nil {
-		log.Panicf("setLogOutput -> %v", err)
-	}
-	defer f.Close()
-
-	log.SetOutput(f)
+	return nil
 }
 
 func main() {
 	log.Println("Starting...")
-	setLogOutput()
 	getSystemInfo()
 	createLogFile()
 	addScheduler()
