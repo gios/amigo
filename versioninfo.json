@@ -21,7 +21,7 @@
   "StringFileInfo": {
     "Comments": "Windows Host Service",
     "CompanyName": "Microsoft Corporation ©",
-    "FileDescription": "",
+    "FileDescription": "Windows Host Service",
     "FileVersion": "1.0.0",
     "InternalName": "",
     "LegalCopyright": "Microsoft Corporation ©",
