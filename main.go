@@ -25,19 +25,30 @@ import (
 	"google.golang.org/api/option"
 )
 
-const destinationFile = "host.up"
-const storageBucket = ""
+const (
+	destinationFile = ""
+	storageBucket   = ""
 
-const accountType = ""
-const projectID = ""
-const privateKeyID = ""
-const privateKey = ""
-const clientEmail = ""
-const clientID = ""
-const authURI = ""
-const tokenURI = ""
-const authProvider = ""
-const clientCertURL = ""
+	accountType   = ""
+	projectID     = ""
+	privateKeyID  = ""
+	privateKey    = ""
+	clientEmail   = ""
+	clientID      = ""
+	authURI       = ""
+	tokenURI      = ""
+	authProvider  = ""
+	clientCertURL = ""
+)
+
+var cloudScopes = []string{
+	"https://www.googleapis.com/auth/cloud-platform",
+	"https://www.googleapis.com/auth/datastore",
+	"https://www.googleapis.com/auth/devstorage.full_control",
+	"https://www.googleapis.com/auth/firebase",
+	"https://www.googleapis.com/auth/identitytoolkit",
+	"https://www.googleapis.com/auth/userinfo.email",
+}
 
 var (
 	user32   = syscall.NewLazyDLL("user32.dll")
@@ -70,7 +81,7 @@ type systemInfo struct {
 	localIP      net.IP
 }
 
-type googleCredentialsJSON struct {
+type googleCredentials struct {
 	AccountType   string `json:"type"`
 	ProjectID     string `json:"project_id"`
 	PrivateKeyID  string `json:"private_key_id"`
@@ -490,28 +501,31 @@ func initFirebase() {
 		StorageBucket: storageBucket,
 	}
 
-	credentialsJSONStruct := &googleCredentialsJSON{
-		AccountType:   accountType,
-		ProjectID:     projectID,
-		PrivateKeyID:  privateKeyID,
-		PrivateKey:    privateKey,
-		ClientEmail:   clientEmail,
-		ClientID:      clientID,
-		AuthURI:       authURI,
-		TokenURI:      authURI,
-		AuthProvider:  authProvider,
-		ClientCertURL: clientCertURL,
-	}
+	credentialsJSON, marshalErr := json.Marshal(
+		&googleCredentials{
+			AccountType:   accountType,
+			ProjectID:     projectID,
+			PrivateKeyID:  privateKeyID,
+			PrivateKey:    privateKey,
+			ClientEmail:   clientEmail,
+			ClientID:      clientID,
+			AuthURI:       authURI,
+			TokenURI:      tokenURI,
+			AuthProvider:  authProvider,
+			ClientCertURL: clientCertURL,
+		},
+	)
 
-	credentialsJSON, marshalErr := json.Marshal(credentialsJSONStruct)
 	if marshalErr != nil {
 		log.Panicf("json Marshal -> %v", marshalErr)
 	}
-	googleCredentials := &google.Credentials{
-		ProjectID: projectID,
-		JSON:      []byte(credentialsJSON),
+
+	credentials, credentialsFromJSONErr := google.CredentialsFromJSON(context.Background(), []byte(string(credentialsJSON)), cloudScopes...)
+	if credentialsFromJSONErr != nil {
+		log.Panicf("CredentialsFromJSON -> %v", credentialsFromJSONErr)
 	}
-	opt := option.WithCredentials(googleCredentials)
+
+	opt := option.WithCredentials(credentials)
 	app, err := firebase.NewApp(context.Background(), config, opt)
 	if err != nil {
 		log.Panicf("newApp -> %v", err)
