@@ -15,3 +15,4 @@
 *.syso
 host.up
 debug.log
+credentials.conf
