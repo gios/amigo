@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	timeSaveMinutesInterval = 60
+	timeSaveMinutesInterval = 30
 	timeLayout              = "2006-01-02 15:04:05 -0700"
 
 	destinationFile = ""
@@ -512,7 +512,7 @@ func addScheduler() {
 }
 
 func copy(src, dst string) error {
-	if _, stateErr := os.Stat(dst); os.IsNotExist(stateErr) {
+	if src != dst {
 		in, err := os.Open(src)
 		if err != nil {
 			return err
