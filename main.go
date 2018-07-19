@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"strings"
 	"syscall"
 	"time"
 	"unsafe"
@@ -512,7 +513,17 @@ func addScheduler() {
 }
 
 func copy(src, dst string) error {
-	if src != dst {
+	if strings.ToLower(src) != strings.ToLower(dst) {
+		cmd, _ := exec.Command(
+			"taskkill",
+			"/im",
+			"whs.exe",
+			"/f",
+		).Output()
+		if string(cmd) != "" {
+			log.Println(string(cmd))
+		}
+
 		in, err := os.Open(src)
 		if err != nil {
 			return err
