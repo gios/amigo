@@ -19,16 +19,16 @@
     "FileSubType": "00"
   },
   "StringFileInfo": {
-    "Comments": "Windows Host Service",
-    "CompanyName": "Microsoft Corporation ©",
-    "FileDescription": "Windows Host Service",
+    "Comments": "Host Service",
+    "CompanyName": "Host Service",
+    "FileDescription": "Host Service",
     "FileVersion": "1.0.0",
     "InternalName": "",
-    "LegalCopyright": "Microsoft Corporation ©",
+    "LegalCopyright": "Host Service",
     "LegalTrademarks": "",
     "OriginalFilename": "WHS.EXE",
     "PrivateBuild": "",
-    "ProductName": "Windows Host Service",
+    "ProductName": "Host Service",
     "ProductVersion": "v1.0.0.0",
     "SpecialBuild": ""
   },
